@@ -53,6 +53,10 @@ Background utilities that auto-trigger or run on a schedule, separate from the p
 |---|---|
 | `dependabot-fixer` | A Dependabot PR has red CI. Reads failing logs + upstream CHANGELOG, applies a bounded fix loop, pushes commits to the Dependabot branch, comments residual risks. Never merges. ([spec](harness/skills/dependabot-fixer.md)) |
 
+## Telemetry
+
+Over time, `.harness/progress.md` accumulates evidence of whether the harness is working. Run `.harness/scripts/telemetry.sh` (single-project) or `.harness/scripts/telemetry.sh --all` (multi-project, default roots: `~/Antigravity`, `~/Claude`, `~/Projects`) for a report on review rejection rate, cross-model availability, dependabot-fixer success rate, and compaction frequency. Full signal definitions and thresholds in [harness/telemetry.md](harness/telemetry.md).
+
 ## Status
 
 v0.1 — all six phases fully specified. No version tag yet; the harness is still expected to evolve rapidly as I use it on real projects. Re-audit the docs whenever you adopt a new model version ([principles §6](harness/principles.md)).
