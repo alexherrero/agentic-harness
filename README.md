@@ -28,9 +28,11 @@ This drops in:
 
 With `--hooks`:
 - `.harness/verify.sh` — per-project verification script (edit to uncomment checks for your stack)
-- `.claude/settings.json` — `PostToolUse` hook that runs `verify.sh` after every Write/Edit. Merges safely into existing settings.
+- `.harness/hooks/precompact.sh` — appends a marker to `progress.md` before compaction wipes context
+- `.harness/hooks/session-start-compact.sh` — re-anchors Claude on the state files when a session resumes from compact
+- `.claude/settings.json` — `PostToolUse`, `PreCompact`, and `SessionStart(compact)` hooks. Merges safely into existing settings.
 
-Requires `jq` for `--hooks`. Idempotent — safe to re-run.
+See [harness/hooks.md](harness/hooks.md) for the full design. Requires `jq` for `--hooks`. Idempotent — safe to re-run.
 
 ## Phases
 

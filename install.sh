@@ -113,7 +113,7 @@ else
   echo "    kept   CLAUDE.md (exists)"
 fi
 
-# --hooks: verification hook setup
+# --hooks: install all harness hooks (verify + precompact + session-start-compact)
 if [[ $INSTALL_HOOKS -eq 1 ]]; then
   if ! command -v jq >/dev/null 2>&1; then
     echo "Error: --hooks requires jq (for merging settings.json). Install jq and re-run." >&2
@@ -129,7 +129,21 @@ if [[ $INSTALL_HOOKS -eq 1 ]]; then
     echo "    kept   .harness/verify.sh (exists)"
   fi
 
-  # Hook config — merge into .claude/settings.json
+  # Compaction-aware hook scripts — copy to .harness/hooks/
+  mkdir -p .harness/hooks
+  for f in precompact.sh session-start-compact.sh; do
+    if [[ ! -e ".harness/hooks/$f" ]]; then
+      cp "$HARNESS_ROOT/templates/hooks/$f" ".harness/hooks/$f"
+      chmod +x ".harness/hooks/$f"
+      echo "    created .harness/hooks/$f"
+    else
+      echo "    kept   .harness/hooks/$f (exists)"
+    fi
+  done
+
+  # Hook registrations — merge into .claude/settings.json idempotently per event.
+  # Each entry is keyed by a unique substring in its command so we can detect
+  # whether it's already present without depending on field-by-field equality.
   HOOK_FRAGMENT=$(cat <<'JSON'
 {
   "hooks": {
@@ -144,6 +158,30 @@ if [[ $INSTALL_HOOKS -eq 1 ]]; then
           }
         ]
       }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .harness/hooks/precompact.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .harness/hooks/session-start-compact.sh",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   }
 }
@@ -152,40 +190,50 @@ JSON
 
   if [[ ! -e .claude/settings.json ]]; then
     echo "$HOOK_FRAGMENT" > .claude/settings.json
-    echo "    created .claude/settings.json with verification hook"
+    echo "    created .claude/settings.json with harness hooks (verify + precompact + session-start)"
   else
-    # Merge: preserve existing settings, add the hook if not already present
-    existing=$(cat .claude/settings.json)
-    already_present=$(echo "$existing" | jq '[.hooks.PostToolUse // [] | .[] | select(.matcher == "Write|Edit") | .hooks[] | .command | strings | contains(".harness/verify.sh")] | any' 2>/dev/null || echo "false")
+    # Merge per-event. For each event in the fragment, append entries that
+    # aren't already present (detected by a unique substring of the command).
+    merged=$(jq -s '
+      def has_cmd($needle):
+        [.. | objects | .command? // empty | strings | select(contains($needle))] | any;
 
-    if [[ "$already_present" == "true" ]]; then
-      echo "    kept   .claude/settings.json (verification hook already present)"
-    else
-      merged=$(echo "$existing" "$HOOK_FRAGMENT" | jq -s '
-        .[0] as $a | .[1] as $b |
-        $a * ($b | {hooks: ((($a.hooks // {}) | .PostToolUse //= []) as $h | $h | .PostToolUse += $b.hooks.PostToolUse)})
-      ' 2>/dev/null)
-      if [[ -z "$merged" ]]; then
-        # jq merge failed — fall back to simple concatenation if there's no existing hooks key
-        has_hooks=$(echo "$existing" | jq 'has("hooks")')
-        if [[ "$has_hooks" == "false" ]]; then
-          merged=$(echo "$existing" "$HOOK_FRAGMENT" | jq -s '.[0] + .[1]')
+      .[0] as $existing | .[1] as $fragment |
+      reduce ($fragment.hooks | to_entries[]) as $e ($existing;
+        . as $cur |
+        ($e.value[0]) as $new_entry |
+        ($new_entry.hooks[0].command) as $needle |
+        if (($cur.hooks // {})[$e.key] // []) | has_cmd($needle)
+        then $cur
         else
-          echo "    WARNING: .claude/settings.json already has a 'hooks' key. Merge skipped." >&2
-          echo "    Add this PostToolUse entry manually:" >&2
-          echo "$HOOK_FRAGMENT" | sed 's/^/      /' >&2
-          merged=""
-        fi
-      fi
-      if [[ -n "$merged" ]]; then
-        echo "$merged" > .claude/settings.json
-        echo "    updated .claude/settings.json (added verification hook)"
+          .hooks //= {} |
+          .hooks[$e.key] //= [] |
+          .hooks[$e.key] += [$new_entry]
+        end
+      )
+    ' .claude/settings.json <(echo "$HOOK_FRAGMENT") 2>/dev/null)
+
+    if [[ -z "$merged" ]]; then
+      echo "    WARNING: failed to merge hooks into .claude/settings.json. Add manually:" >&2
+      echo "$HOOK_FRAGMENT" | sed 's/^/      /' >&2
+    else
+      # Compute what changed for the user-visible message
+      added=$(diff <(jq -S . .claude/settings.json) <(echo "$merged" | jq -S .) | grep -c '^>' || true)
+      echo "$merged" > .claude/settings.json
+      if [[ "$added" -eq 0 ]]; then
+        echo "    kept   .claude/settings.json (all harness hooks already present)"
+      else
+        echo "    updated .claude/settings.json (added missing harness hooks)"
       fi
     fi
   fi
 
   echo ""
-  echo "==> hooks installed. Edit .harness/verify.sh to enable checks for your stack."
+  echo "==> hooks installed:"
+  echo "    - PostToolUse  → .harness/verify.sh (per-file verification on Write/Edit)"
+  echo "    - PreCompact   → .harness/hooks/precompact.sh (writes marker to progress.md)"
+  echo "    - SessionStart → .harness/hooks/session-start-compact.sh (re-anchors after compact)"
+  echo "    Edit .harness/verify.sh to enable checks for your stack."
 fi
 
 echo ""
