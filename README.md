@@ -18,7 +18,11 @@ Full reasoning in [harness/principles.md](harness/principles.md).
 ## Install into a project
 
 ```bash
+# First install:
 /path/to/agentic-harness/install.sh [--hooks] /path/to/your-project
+
+# Refresh harness-authored files to the current version (leaves your edits alone):
+/path/to/agentic-harness/install.sh --update /path/to/your-project
 ```
 
 This drops in:
@@ -33,6 +37,8 @@ With `--hooks`:
 - `.claude/settings.json` — `PostToolUse`, `PreCompact`, and `SessionStart(compact)` hooks. Merges safely into existing settings.
 
 See [harness/hooks.md](harness/hooks.md) for the full design. Requires `jq` for `--hooks`. Idempotent — safe to re-run.
+
+**What `--update` does:** refreshes harness-authored files (commands, agents, skills, hooks, helper scripts) to the current harness version. Leaves user-authored files alone (`PLAN.md`, `progress.md`, `features.json`, `init.sh`, `verify.sh`, `known-migrations.md`, `AGENTS.md`, `CLAUDE.md`). Writes `.harness/.version` so subsequent runs can show a version delta.
 
 ## Phases
 

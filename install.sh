@@ -1,29 +1,38 @@
 #!/usr/bin/env bash
-# install.sh — install agentic-harness into a target project.
+# install.sh — install or update agentic-harness in a target project.
 #
 # Usage:
-#   /path/to/agentic-harness/install.sh [--hooks] <target-project-path>
+#   /path/to/agentic-harness/install.sh [--hooks] [--update] <target-project-path>
 #
 # Options:
-#   --hooks   Also install a PostToolUse verification hook that runs
-#             .harness/verify.sh after every Write|Edit. You'll edit
-#             verify.sh to uncomment the typecheck/lint for your stack.
+#   --hooks    Install the PostToolUse/PreCompact/SessionStart hooks into
+#              .claude/settings.json and copy hook scripts to .harness/hooks/.
+#              Merges idempotently with any existing settings.
+#   --update   Refresh harness-authored files (commands, agents, skills,
+#              hooks, scripts) to the current harness version. Leaves
+#              user-authored files alone (PLAN.md, progress.md, verify.sh,
+#              init.sh, known-migrations.md, AGENTS.md, CLAUDE.md).
+#              Writes .harness/.version so future --update runs can show
+#              the version delta.
 #
-# Idempotent: safe to re-run. Existing files are preserved; templates are only
-# copied if they don't already exist at the destination. Hooks are merged into
-# any existing .claude/settings.json.
+# Without --update: existing files are preserved (skip-if-exists).
+# With --update:    harness-authored files are overwritten; user files stay.
 
 set -euo pipefail
 
 HARNESS_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+HARNESS_VERSION="$(git -C "$HARNESS_ROOT" describe --tags --abbrev=0 2>/dev/null || echo "dev")"
+
 INSTALL_HOOKS=0
+UPDATE_MODE=0
 TARGET=""
 
 for arg in "$@"; do
   case "$arg" in
     --hooks) INSTALL_HOOKS=1 ;;
+    --update) UPDATE_MODE=1 ;;
     -h|--help)
-      sed -n 's/^# //p' "$0" | head -20
+      sed -n 's/^# \{0,1\}//p' "$0" | head -22
       exit 0
       ;;
     -*)
@@ -41,7 +50,7 @@ for arg in "$@"; do
 done
 
 if [[ -z "$TARGET" ]]; then
-  echo "Usage: $0 [--hooks] <target-project-path>" >&2
+  echo "Usage: $0 [--hooks] [--update] <target-project-path>" >&2
   exit 1
 fi
 
@@ -52,112 +61,142 @@ fi
 
 cd "$TARGET"
 
-echo "==> installing agentic-harness into: $TARGET"
+# Detect existing install
+EXISTING_VERSION=""
+[[ -f .harness/.version ]] && EXISTING_VERSION="$(cat .harness/.version 2>/dev/null | tr -d '[:space:]')"
 
-# .harness/ — per-project state
+if [[ $UPDATE_MODE -eq 1 ]]; then
+  if [[ -n "$EXISTING_VERSION" && "$EXISTING_VERSION" != "$HARNESS_VERSION" ]]; then
+    echo "==> updating agentic-harness in: $TARGET ($EXISTING_VERSION → $HARNESS_VERSION)"
+  elif [[ -n "$EXISTING_VERSION" ]]; then
+    echo "==> updating agentic-harness in: $TARGET (already at $HARNESS_VERSION; refreshing managed files)"
+  else
+    echo "==> updating agentic-harness in: $TARGET (no prior version recorded; treating as fresh refresh)"
+  fi
+else
+  echo "==> installing agentic-harness into: $TARGET (version $HARNESS_VERSION)"
+  if [[ -n "$EXISTING_VERSION" && "$EXISTING_VERSION" != "$HARNESS_VERSION" ]]; then
+    echo "    note: this project is on $EXISTING_VERSION; harness is $HARNESS_VERSION."
+    echo "          re-run with --update to refresh harness-authored files."
+  fi
+fi
+
+# ── helpers ─────────────────────────────────────────────────────────────────
+
+# cp_user: copy only if destination is missing. For files the user owns and edits.
+cp_user() {
+  local src="$1" dst="$2"
+  if [[ ! -e "$dst" ]]; then
+    cp "$src" "$dst"
+    echo "    created $dst"
+  else
+    echo "    kept    $dst (exists)"
+  fi
+}
+
+# cp_managed: in --update mode, always overwrite. Otherwise, skip if exists.
+# For harness-authored files the user should not edit.
+cp_managed() {
+  local src="$1" dst="$2"
+  if [[ $UPDATE_MODE -eq 1 && -e "$dst" ]]; then
+    if cmp -s "$src" "$dst"; then
+      echo "    kept    $dst (up to date)"
+    else
+      cp "$src" "$dst"
+      echo "    updated $dst"
+    fi
+  elif [[ ! -e "$dst" ]]; then
+    cp "$src" "$dst"
+    echo "    created $dst"
+  else
+    echo "    kept    $dst (exists — re-run with --update to refresh)"
+  fi
+}
+
+# cp_managed_dir: same semantics for directory skills.
+cp_managed_dir() {
+  local src="$1" dst="$2"
+  if [[ $UPDATE_MODE -eq 1 && -e "$dst" ]]; then
+    # Overwrite directory contents. Safe because skills are harness-authored.
+    rm -rf "$dst"
+    cp -R "$src" "$dst"
+    echo "    updated $dst"
+  elif [[ ! -e "$dst" ]]; then
+    cp -R "$src" "$dst"
+    echo "    created $dst"
+  else
+    echo "    kept    $dst (exists — re-run with --update to refresh)"
+  fi
+}
+
+# ── user files: per-project state (never overwrite) ─────────────────────────
+
 mkdir -p .harness
 for f in PLAN.md features.json progress.md init.sh known-migrations.md; do
-  if [[ ! -e ".harness/$f" ]]; then
-    cp "$HARNESS_ROOT/templates/$f" ".harness/$f"
-    echo "    created .harness/$f"
-  else
-    echo "    kept   .harness/$f (exists)"
-  fi
+  cp_user "$HARNESS_ROOT/templates/$f" ".harness/$f"
 done
 chmod +x .harness/init.sh
+
+# ── managed files: harness-authored (overwrite with --update) ───────────────
 
 # .harness/scripts/ — helper scripts invoked by agents and phases
 mkdir -p .harness/scripts
 for f in "$HARNESS_ROOT"/templates/scripts/*.sh; do
   [[ -e "$f" ]] || continue
   name="$(basename "$f")"
-  if [[ ! -e ".harness/scripts/$name" ]]; then
-    cp "$f" ".harness/scripts/$name"
-    chmod +x ".harness/scripts/$name"
-    echo "    created .harness/scripts/$name"
-  else
-    echo "    kept   .harness/scripts/$name (exists)"
-  fi
+  cp_managed "$f" ".harness/scripts/$name"
+  chmod +x ".harness/scripts/$name"
 done
 
 # .claude/ — Claude Code config
 mkdir -p .claude/commands .claude/agents .claude/skills
 for f in "$HARNESS_ROOT"/adapters/claude-code/commands/*.md; do
-  name="$(basename "$f")"
-  if [[ ! -e ".claude/commands/$name" ]]; then
-    cp "$f" ".claude/commands/$name"
-    echo "    created .claude/commands/$name"
-  else
-    echo "    kept   .claude/commands/$name (exists)"
-  fi
+  cp_managed "$f" ".claude/commands/$(basename "$f")"
 done
 for f in "$HARNESS_ROOT"/adapters/claude-code/agents/*.md; do
-  name="$(basename "$f")"
-  if [[ ! -e ".claude/agents/$name" ]]; then
-    cp "$f" ".claude/agents/$name"
-    echo "    created .claude/agents/$name"
-  else
-    echo "    kept   .claude/agents/$name (exists)"
-  fi
+  cp_managed "$f" ".claude/agents/$(basename "$f")"
 done
 for d in "$HARNESS_ROOT"/adapters/claude-code/skills/*/; do
   [[ -d "$d" ]] || continue
-  name="$(basename "$d")"
-  if [[ ! -e ".claude/skills/$name" ]]; then
-    cp -R "$d" ".claude/skills/$name"
-    echo "    created .claude/skills/$name"
-  else
-    echo "    kept   .claude/skills/$name (exists)"
-  fi
+  cp_managed_dir "$d" ".claude/skills/$(basename "$d")"
 done
 
-# AGENTS.md — universal entry. Copy only if missing.
+# ── user files: top-level entrypoints (never overwrite) ─────────────────────
+
 if [[ ! -e AGENTS.md ]]; then
   cp "$HARNESS_ROOT/AGENTS.md" AGENTS.md
   echo "    created AGENTS.md"
 else
-  echo "    kept   AGENTS.md (exists — you may want to merge harness sections from $HARNESS_ROOT/AGENTS.md)"
+  echo "    kept    AGENTS.md (exists — you may want to merge harness sections from $HARNESS_ROOT/AGENTS.md)"
 fi
 
-# CLAUDE.md — Claude Code pointer.
 if [[ ! -e CLAUDE.md ]]; then
   cp "$HARNESS_ROOT/CLAUDE.md" CLAUDE.md
   echo "    created CLAUDE.md"
 else
-  echo "    kept   CLAUDE.md (exists)"
+  echo "    kept    CLAUDE.md (exists)"
 fi
 
-# --hooks: install all harness hooks (verify + precompact + session-start-compact)
+# ── --hooks: install PostToolUse/PreCompact/SessionStart hooks ──────────────
+
 if [[ $INSTALL_HOOKS -eq 1 ]]; then
   if ! command -v jq >/dev/null 2>&1; then
     echo "Error: --hooks requires jq (for merging settings.json). Install jq and re-run." >&2
     exit 1
   fi
 
-  # verify.sh template — only copy if missing (it's the per-project part)
-  if [[ ! -e .harness/verify.sh ]]; then
-    cp "$HARNESS_ROOT/templates/verify.sh" .harness/verify.sh
-    chmod +x .harness/verify.sh
-    echo "    created .harness/verify.sh (edit this to enable typecheck/lint per language)"
-  else
-    echo "    kept   .harness/verify.sh (exists)"
-  fi
+  # verify.sh — per-project (user-editable)
+  cp_user "$HARNESS_ROOT/templates/verify.sh" .harness/verify.sh
+  chmod +x .harness/verify.sh
 
-  # Compaction-aware hook scripts — copy to .harness/hooks/
+  # hook scripts — harness-authored (managed)
   mkdir -p .harness/hooks
   for f in precompact.sh session-start-compact.sh; do
-    if [[ ! -e ".harness/hooks/$f" ]]; then
-      cp "$HARNESS_ROOT/templates/hooks/$f" ".harness/hooks/$f"
-      chmod +x ".harness/hooks/$f"
-      echo "    created .harness/hooks/$f"
-    else
-      echo "    kept   .harness/hooks/$f (exists)"
-    fi
+    cp_managed "$HARNESS_ROOT/templates/hooks/$f" ".harness/hooks/$f"
+    chmod +x ".harness/hooks/$f"
   done
 
   # Hook registrations — merge into .claude/settings.json idempotently per event.
-  # Each entry is keyed by a unique substring in its command so we can detect
-  # whether it's already present without depending on field-by-field equality.
   HOOK_FRAGMENT=$(cat <<'JSON'
 {
   "hooks": {
@@ -206,8 +245,6 @@ JSON
     echo "$HOOK_FRAGMENT" > .claude/settings.json
     echo "    created .claude/settings.json with harness hooks (verify + precompact + session-start)"
   else
-    # Merge per-event. For each event in the fragment, append entries that
-    # aren't already present (detected by a unique substring of the command).
     merged=$(jq -s '
       def has_cmd($needle):
         [.. | objects | .command? // empty | strings | select(contains($needle))] | any;
@@ -231,11 +268,10 @@ JSON
       echo "    WARNING: failed to merge hooks into .claude/settings.json. Add manually:" >&2
       echo "$HOOK_FRAGMENT" | sed 's/^/      /' >&2
     else
-      # Compute what changed for the user-visible message
       added=$(diff <(jq -S . .claude/settings.json) <(echo "$merged" | jq -S .) | grep -c '^>' || true)
       echo "$merged" > .claude/settings.json
       if [[ "$added" -eq 0 ]]; then
-        echo "    kept   .claude/settings.json (all harness hooks already present)"
+        echo "    kept    .claude/settings.json (all harness hooks already present)"
       else
         echo "    updated .claude/settings.json (added missing harness hooks)"
       fi
@@ -250,16 +286,26 @@ JSON
   echo "    Edit .harness/verify.sh to enable checks for your stack."
 fi
 
+# ── record version ──────────────────────────────────────────────────────────
+
+echo "$HARNESS_VERSION" > .harness/.version
+
+# ── done ────────────────────────────────────────────────────────────────────
+
 echo ""
-echo "==> done."
-echo ""
-echo "Next steps:"
-echo "  1. Edit .harness/init.sh so it actually boots this project"
-if [[ $INSTALL_HOOKS -eq 1 ]]; then
-  echo "  2. Edit .harness/verify.sh — uncomment the language case for your stack"
-  echo "  3. Run /setup (Claude Code) or prompt 'run the setup phase' (Antigravity)"
-  echo "  4. Then /plan <your first brief>"
+if [[ $UPDATE_MODE -eq 1 ]]; then
+  echo "==> update complete (now at $HARNESS_VERSION)."
 else
-  echo "  2. Run /setup (Claude Code) or prompt 'run the setup phase' (Antigravity)"
-  echo "  3. Then /plan <your first brief>"
+  echo "==> done."
+  echo ""
+  echo "Next steps:"
+  echo "  1. Edit .harness/init.sh so it actually boots this project"
+  if [[ $INSTALL_HOOKS -eq 1 ]]; then
+    echo "  2. Edit .harness/verify.sh — uncomment the language case for your stack"
+    echo "  3. Run /setup (Claude Code) or prompt 'run the setup phase' (Antigravity)"
+    echo "  4. Then /plan <your first brief>"
+  else
+    echo "  2. Run /setup (Claude Code) or prompt 'run the setup phase' (Antigravity)"
+    echo "  3. Then /plan <your first brief>"
+  fi
 fi
