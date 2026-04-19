@@ -18,15 +18,19 @@ Full reasoning in [harness/principles.md](harness/principles.md).
 ## Install into a project
 
 ```bash
-/path/to/agentic-harness/install.sh /path/to/your-project
+/path/to/agentic-harness/install.sh [--hooks] /path/to/your-project
 ```
 
 This drops in:
 - `.harness/` — per-project state (PLAN.md, features.json, progress.md, init.sh)
-- `.claude/commands/` — slash commands for Claude Code
-- `AGENTS.md` section — for Antigravity and other tools that read it
+- `.claude/commands/` + `.claude/agents/` — slash commands and sub-agents for Claude Code
+- `AGENTS.md` + `CLAUDE.md` — agent entry points (Antigravity, Cursor, Codex, Claude Code)
 
-See [install.sh](install.sh) for details. It's idempotent and merges with existing files where possible.
+With `--hooks`:
+- `.harness/verify.sh` — per-project verification script (edit to uncomment checks for your stack)
+- `.claude/settings.json` — `PostToolUse` hook that runs `verify.sh` after every Write/Edit. Merges safely into existing settings.
+
+Requires `jq` for `--hooks`. Idempotent — safe to re-run.
 
 ## Phases
 
