@@ -57,16 +57,37 @@ Determine:
 Show this to the user in one line before invoking the reviewer:
 > "Reviewing: task N '<title>'. Artifact: <sha1>..<sha2> (<N files, ±lines>)."
 
-### 3. Dispatch the adversarial reviewer
+### 3. Dispatch the reviewers
 
-Invoke the `adversarial-reviewer` sub-agent (full spec at `harness/agents/adversarial-reviewer.md`). The invocation must include:
+The phase runs **two reviewers in sequence** — cross-model first, in-process second — to escape the same-model echo chamber.
 
+**Stage A: cross-model reviewer (primary)**
+
+Invoke the `adversarial-reviewer-cross` sub-agent (full spec at `harness/agents/adversarial-reviewer-cross.md`). It shells out to `.harness/scripts/cross-review.sh`, which calls Gemini. Possible outcomes:
+
+- **Output matches the contract** → these are the primary findings.
+- **Gemini unavailable (exit 1)** → the sub-agent falls back to in-process review; Stage B then runs alone. Log `gemini unavailable` in progress.md.
+- **Contract violated twice (exit 2)** → the reviewer is stuck; fall back as above and log `cross-model stuck`.
+
+**Stage B: in-process reviewer (corroboration)**
+
+Invoke the `adversarial-reviewer` sub-agent (full spec at `harness/agents/adversarial-reviewer.md`) with the same inputs. Run this even if Stage A produced findings — we want both opinions. Skip only if Stage A already fell back (it already ran).
+
+Both invocations must include:
 - The diff (as patch or file list + current contents)
 - The `PLAN.md` task: What, Verification, any relevant Constraints
 - A pointer to `AGENTS.md` / `CLAUDE.md` for conventions
 - The framing (literal): "The code under review likely contains bugs. Find them."
 
-The sub-agent runs in a fresh context — no parent conversation history.
+Both sub-agents run in a fresh context — no parent conversation history.
+
+### 3a. Reconcile the two reviewers
+
+- **Both say `NO ISSUES FOUND`** → clean review. High confidence.
+- **Both find issues** → merge findings; same issue from both is a strong signal.
+- **They disagree** (one clean, one finds something) → surface both to the user. Do not pick a side. Disagreement is signal — the finding reviewer may have caught a blind spot; or the clean reviewer may be right and the other is hallucinating. Either way, human decides.
+
+If only one reviewer ran (Stage A fell back), proceed as with a single-reviewer review. Note the fallback in the final report so the user knows the confidence is lower.
 
 ### 4. Validate the reviewer's output format
 

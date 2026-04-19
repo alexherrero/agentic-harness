@@ -22,7 +22,7 @@ Full reasoning in [harness/principles.md](harness/principles.md).
 ```
 
 This drops in:
-- `.harness/` — per-project state (PLAN.md, features.json, progress.md, init.sh, known-migrations.md)
+- `.harness/` — per-project state (PLAN.md, features.json, progress.md, init.sh, known-migrations.md) and `scripts/` (e.g. `cross-review.sh` for cross-model review via Gemini)
 - `.claude/commands/` + `.claude/agents/` + `.claude/skills/` — slash commands, sub-agents, and skills for Claude Code
 - `AGENTS.md` + `CLAUDE.md` — agent entry points (Antigravity, Cursor, Codex, Claude Code)
 

@@ -66,6 +66,20 @@ for f in PLAN.md features.json progress.md init.sh known-migrations.md; do
 done
 chmod +x .harness/init.sh
 
+# .harness/scripts/ — helper scripts invoked by agents and phases
+mkdir -p .harness/scripts
+for f in "$HARNESS_ROOT"/templates/scripts/*.sh; do
+  [[ -e "$f" ]] || continue
+  name="$(basename "$f")"
+  if [[ ! -e ".harness/scripts/$name" ]]; then
+    cp "$f" ".harness/scripts/$name"
+    chmod +x ".harness/scripts/$name"
+    echo "    created .harness/scripts/$name"
+  else
+    echo "    kept   .harness/scripts/$name (exists)"
+  fi
+done
+
 # .claude/ — Claude Code config
 mkdir -p .claude/commands .claude/agents .claude/skills
 for f in "$HARNESS_ROOT"/adapters/claude-code/commands/*.md; do

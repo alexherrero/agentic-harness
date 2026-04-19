@@ -35,12 +35,13 @@ your-project/
 │   ├── features.json       # structured feature list with passes: true|false
 │   ├── progress.md         # append-only log of what was done, when, what's next
 │   ├── init.sh             # one-shot script to boot the dev environment
-│   └── known-migrations.md # per-project recipes for dependabot-fixer skill
+│   ├── known-migrations.md # per-project recipes for dependabot-fixer skill
+│   └── scripts/            # shell helpers — cross-review.sh (Gemini shell-out), etc.
 ├── AGENTS.md               # this file (or a pointer to it)
 ├── CLAUDE.md               # Claude Code entry point — points back here
 └── .claude/
     ├── commands/           # slash commands (Claude Code)
-    ├── agents/             # sub-agents (Claude Code)
+    ├── agents/             # sub-agents (Claude Code) — adversarial-reviewer, adversarial-reviewer-cross, explorer
     └── skills/             # auto-triggered skills (Claude Code) — e.g. dependabot-fixer
 ```
 
