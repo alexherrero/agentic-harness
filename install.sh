@@ -56,7 +56,7 @@ echo "==> installing agentic-harness into: $TARGET"
 
 # .harness/ — per-project state
 mkdir -p .harness
-for f in PLAN.md features.json progress.md init.sh; do
+for f in PLAN.md features.json progress.md init.sh known-migrations.md; do
   if [[ ! -e ".harness/$f" ]]; then
     cp "$HARNESS_ROOT/templates/$f" ".harness/$f"
     echo "    created .harness/$f"
@@ -67,7 +67,7 @@ done
 chmod +x .harness/init.sh
 
 # .claude/ — Claude Code config
-mkdir -p .claude/commands .claude/agents
+mkdir -p .claude/commands .claude/agents .claude/skills
 for f in "$HARNESS_ROOT"/adapters/claude-code/commands/*.md; do
   name="$(basename "$f")"
   if [[ ! -e ".claude/commands/$name" ]]; then
@@ -84,6 +84,16 @@ for f in "$HARNESS_ROOT"/adapters/claude-code/agents/*.md; do
     echo "    created .claude/agents/$name"
   else
     echo "    kept   .claude/agents/$name (exists)"
+  fi
+done
+for d in "$HARNESS_ROOT"/adapters/claude-code/skills/*/; do
+  [[ -d "$d" ]] || continue
+  name="$(basename "$d")"
+  if [[ ! -e ".claude/skills/$name" ]]; then
+    cp -R "$d" ".claude/skills/$name"
+    echo "    created .claude/skills/$name"
+  else
+    echo "    kept   .claude/skills/$name (exists)"
   fi
 done
 

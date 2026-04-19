@@ -22,8 +22,8 @@ Full reasoning in [harness/principles.md](harness/principles.md).
 ```
 
 This drops in:
-- `.harness/` — per-project state (PLAN.md, features.json, progress.md, init.sh)
-- `.claude/commands/` + `.claude/agents/` — slash commands and sub-agents for Claude Code
+- `.harness/` — per-project state (PLAN.md, features.json, progress.md, init.sh, known-migrations.md)
+- `.claude/commands/` + `.claude/agents/` + `.claude/skills/` — slash commands, sub-agents, and skills for Claude Code
 - `AGENTS.md` + `CLAUDE.md` — agent entry points (Antigravity, Cursor, Codex, Claude Code)
 
 With `--hooks`:
@@ -42,6 +42,14 @@ Requires `jq` for `--hooks`. Idempotent — safe to re-run.
 | `/review` | Adversarial critique of the change — must produce executable artifact |
 | `/release` | Pre-merge gate: clean tree, verification passes, changelog |
 | `/bugfix` | Report → Analyze → Fix → Verify pipeline (replaces `/work` for bugs) |
+
+## Skills
+
+Background utilities that auto-trigger or run on a schedule, separate from the phase commands.
+
+| Skill | Triggers when |
+|---|---|
+| `dependabot-fixer` | A Dependabot PR has red CI. Reads failing logs + upstream CHANGELOG, applies a bounded fix loop, pushes commits to the Dependabot branch, comments residual risks. Never merges. ([spec](harness/skills/dependabot-fixer.md)) |
 
 ## Status
 
