@@ -199,6 +199,19 @@ for d in "$HARNESS_ROOT"/adapters/antigravity/skills/*/; do
   cp_managed_dir "$d" ".agent/skills/$(basename "$d")"
 done
 
+# .agents/skills/ + .codex/agents/ — Codex CLI config (full-parity adapter).
+# Note: Codex uses plural .agents/ for skills and singular .codex/ for
+# subagents (TOML) — distinct from Antigravity's .agent/ singular.
+mkdir -p .agents/skills .codex/agents
+for d in "$HARNESS_ROOT"/adapters/codex/skills/*/; do
+  [[ -d "$d" ]] || continue
+  cp_managed_dir "$d" ".agents/skills/$(basename "$d")"
+done
+for f in "$HARNESS_ROOT"/adapters/codex/agents/*.toml; do
+  [[ -e "$f" ]] || continue
+  cp_managed "$f" ".codex/agents/$(basename "$f")"
+done
+
 # ── wiki/ — documentation scaffold (per-file walk, skip-if-exists) ──────────
 # Source: $HARNESS_ROOT/templates/wiki/ (NOT $HARNESS_ROOT/wiki/ — that's
 # this repo's own dogfooded docs and never ships to targets).
