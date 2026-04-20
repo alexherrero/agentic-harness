@@ -20,6 +20,12 @@
 
 set -euo pipefail
 
+# Installer boundary: this script copies ONLY from $HARNESS_ROOT/templates/
+# and $HARNESS_ROOT/adapters/. The top-level $HARNESS_ROOT/wiki/ tree is
+# this repo's own dogfooded documentation (how to use the harness) and
+# must NEVER be propagated into target projects. Target projects get the
+# empty scaffold from $HARNESS_ROOT/templates/wiki/ instead. Do not add
+# copy paths that read from $HARNESS_ROOT/wiki/.
 HARNESS_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 HARNESS_VERSION="$(git -C "$HARNESS_ROOT" describe --tags --abbrev=0 2>/dev/null || echo "dev")"
 
@@ -113,6 +119,22 @@ cp_managed() {
   fi
 }
 
+# cp_user_walk: walk a source directory recursively and cp_user each file.
+# Preserves any files the user has already created in the destination tree;
+# fills in missing scaffold files without clobbering. Used for wiki/ where
+# scaffold and human-authored pages coexist.
+cp_user_walk() {
+  local src_root="$1" dst_root="$2"
+  [[ -d "$src_root" ]] || return 0
+  # Portable: find prints src paths; strip prefix to get relative.
+  while IFS= read -r src_file; do
+    local rel="${src_file#"$src_root"/}"
+    local dst_file="$dst_root/$rel"
+    mkdir -p "$(dirname "$dst_file")"
+    cp_user "$src_file" "$dst_file"
+  done < <(find "$src_root" -type f)
+}
+
 # cp_managed_dir: same semantics for directory skills.
 cp_managed_dir() {
   local src="$1" dst="$2"
@@ -160,6 +182,15 @@ for d in "$HARNESS_ROOT"/adapters/claude-code/skills/*/; do
   [[ -d "$d" ]] || continue
   cp_managed_dir "$d" ".claude/skills/$(basename "$d")"
 done
+
+# ── wiki/ — documentation scaffold (per-file walk, skip-if-exists) ──────────
+# Source: $HARNESS_ROOT/templates/wiki/ (NOT $HARNESS_ROOT/wiki/ — that's
+# this repo's own dogfooded docs and never ships to targets).
+cp_user_walk "$HARNESS_ROOT/templates/wiki" "wiki"
+
+# ── .github/workflows/wiki-sync.yml — managed (refreshed on --update) ───────
+mkdir -p .github/workflows
+cp_managed "$HARNESS_ROOT/templates/.github/workflows/wiki-sync.yml" ".github/workflows/wiki-sync.yml"
 
 # ── user files: top-level entrypoints (never overwrite) ─────────────────────
 
