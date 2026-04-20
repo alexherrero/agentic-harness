@@ -42,7 +42,7 @@ adapters/gemini/
 └── settings.json                               (→ target's .gemini/settings.json)
 ```
 
-No `skills/` directory — `dependabot-fixer` is delivered to `.agents/skills/` by the Codex adapter block in `install.sh`, and Gemini reads that path natively per the Agent Skills spec.
+No `skills/` directory — `dependabot-fixer` is delivered to `.agents/skills/` by the Codex adapter block in `install.sh` / `install.ps1`, and Gemini reads that path natively per the Agent Skills spec.
 
 ## Invocation
 
@@ -77,7 +77,7 @@ The shipped `settings.json` sets:
 
 This makes Gemini CLI treat the repo-root `AGENTS.md` (installed by the harness) as a first-class context file, same as GEMINI.md. No separate GEMINI.md is required — though users can add one for Gemini-specific overrides.
 
-**If you already have `.gemini/settings.json`**, `install.sh` will not overwrite it. Add `"AGENTS.md"` to your `context.fileName` array manually:
+**If you already have `.gemini/settings.json`**, neither `install.sh` nor `install.ps1` will overwrite it. Add `"AGENTS.md"` to your `context.fileName` array manually:
 
 ```json
 {

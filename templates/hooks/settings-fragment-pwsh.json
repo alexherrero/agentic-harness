@@ -1,0 +1,40 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -Command \"$i = [Console]::In.ReadToEnd() | ConvertFrom-Json; $f = $i.tool_input.file_path; if (-not $f) { $f = $i.tool_response.filePath }; if ($f -and (Test-Path .harness/verify.ps1)) { pwsh -NoProfile -File .harness/verify.ps1 $f }\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File .harness/hooks/precompact.ps1",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File .harness/hooks/session-start-compact.ps1",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

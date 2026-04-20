@@ -43,7 +43,7 @@ adapters/antigravity/
     └── dependabot-fixer/SKILL.md
 ```
 
-`install.sh` copies this tree to the target's `.agent/` directory (same `cp_managed` semantics as the Claude Code adapter: refreshed on `--update`, preserved on fresh install if already present).
+`install.sh` (POSIX) or `install.ps1` (Windows/PowerShell 7+) copies this tree to the target's `.agent/` directory with the same `cp_managed` semantics as the Claude Code adapter: refreshed on `--update` / `-Update`, preserved on fresh install if already present.
 
 ## Invocation
 

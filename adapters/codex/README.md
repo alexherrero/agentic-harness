@@ -44,7 +44,7 @@ adapters/codex/
     └── documenter.toml                         (sandbox_mode = workspace-write)
 ```
 
-`install.sh` copies `skills/` to the target's `.agents/skills/` and `agents/` to the target's `.codex/agents/` (both `cp_managed_dir` semantics: refreshed on `--update`, preserved on fresh install if already present).
+`install.sh` (POSIX) or `install.ps1` (Windows/PowerShell 7+) copies `skills/` to the target's `.agents/skills/` and `agents/` to the target's `.codex/agents/` with managed semantics: refreshed on `--update` / `-Update`, preserved on fresh install if already present.
 
 ## Invocation
 

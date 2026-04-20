@@ -1,0 +1,40 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath // empty' | { read -r f; [[ -n \"$f\" && -x .harness/verify.sh ]] && bash .harness/verify.sh \"$f\" || true; }",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .harness/hooks/precompact.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .harness/hooks/session-start-compact.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -36,7 +36,7 @@ your-project/
 │   ├── progress.md         # append-only log of what was done, when, what's next
 │   ├── init.sh             # one-shot script to boot the dev environment
 │   ├── known-migrations.md # per-project recipes for dependabot-fixer skill
-│   └── scripts/            # shell helpers — cross-review.sh (Gemini shell-out), etc.
+│   └── scripts/            # shell helpers — cross-review.{sh,ps1} (Gemini shell-out), etc.
 ├── AGENTS.md               # this file (or a pointer to it)
 ├── CLAUDE.md               # Claude Code entry point — points back here
 └── .claude/

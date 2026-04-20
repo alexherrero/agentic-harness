@@ -161,13 +161,19 @@ chmod +x .harness/init.sh
 
 # ── managed files: harness-authored (overwrite with --update) ───────────────
 
-# .harness/scripts/ — helper scripts invoked by agents and phases
+# .harness/scripts/ — helper scripts invoked by agents and phases.
+# Ship BOTH .sh and .ps1 versions so mixed-OS teams get the right one.
 mkdir -p .harness/scripts
 for f in "$HARNESS_ROOT"/templates/scripts/*.sh; do
   [[ -e "$f" ]] || continue
   name="$(basename "$f")"
   cp_managed "$f" ".harness/scripts/$name"
   chmod +x ".harness/scripts/$name"
+done
+for f in "$HARNESS_ROOT"/templates/scripts/*.ps1; do
+  [[ -e "$f" ]] || continue
+  name="$(basename "$f")"
+  cp_managed "$f" ".harness/scripts/$name"
 done
 
 # .claude/ — Claude Code config
@@ -262,61 +268,25 @@ if [[ $INSTALL_HOOKS -eq 1 ]]; then
     exit 1
   fi
 
-  # verify.sh — per-project (user-editable)
-  cp_user "$HARNESS_ROOT/templates/verify.sh" .harness/verify.sh
+  # verify.* — per-project (user-editable). Ship both .sh and .ps1.
+  cp_user "$HARNESS_ROOT/templates/verify.sh"  .harness/verify.sh
+  cp_user "$HARNESS_ROOT/templates/verify.ps1" .harness/verify.ps1
   chmod +x .harness/verify.sh
 
-  # hook scripts — harness-authored (managed)
+  # hook scripts — harness-authored (managed). Ship both .sh and .ps1.
   mkdir -p .harness/hooks
   for f in precompact.sh session-start-compact.sh; do
     cp_managed "$HARNESS_ROOT/templates/hooks/$f" ".harness/hooks/$f"
     chmod +x ".harness/hooks/$f"
   done
+  for f in precompact.ps1 session-start-compact.ps1; do
+    cp_managed "$HARNESS_ROOT/templates/hooks/$f" ".harness/hooks/$f"
+  done
 
-  # Hook registrations — merge into .claude/settings.json idempotently per event.
-  HOOK_FRAGMENT=$(cat <<'JSON'
-{
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "jq -r '.tool_input.file_path // .tool_response.filePath // empty' | { read -r f; [[ -n \"$f\" && -x .harness/verify.sh ]] && bash .harness/verify.sh \"$f\" || true; }",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "matcher": "manual|auto",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .harness/hooks/precompact.sh",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "matcher": "compact",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .harness/hooks/session-start-compact.sh",
-            "timeout": 5
-          }
-        ]
-      }
-    ]
-  }
-}
-JSON
-)
+  # Hook registrations — read canonical bash fragment from templates/hooks/
+  # (kept in lockstep with templates/hooks/settings-fragment-pwsh.json for
+  # the PowerShell installer). Merged into .claude/settings.json per event.
+  HOOK_FRAGMENT=$(cat "$HARNESS_ROOT/templates/hooks/settings-fragment-bash.json")
 
   if [[ ! -e .claude/settings.json ]]; then
     echo "$HOOK_FRAGMENT" > .claude/settings.json

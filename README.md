@@ -25,18 +25,30 @@ Full reasoning in [harness/principles.md](harness/principles.md).
 /path/to/agentic-harness/install.sh --update /path/to/your-project
 ```
 
+On **Windows** (PowerShell 7+), the `install.ps1` twin is semantically equivalent:
+
+```powershell
+# First install:
+pwsh -NoProfile -File C:\path\to\agentic-harness\install.ps1 [-Hooks] C:\path\to\your-project
+
+# Refresh harness-authored files:
+pwsh -NoProfile -File C:\path\to\agentic-harness\install.ps1 -Update C:\path\to\your-project
+```
+
+Either installer drops in both `.sh` and `.ps1` versions of helper scripts (so mixed-OS teams are covered regardless of who ran the installer). The `--hooks` / `-Hooks` flag registers the host-appropriate hook commands into `.claude/settings.json` — `bash` on POSIX, `pwsh -File` on Windows.
+
 This drops in:
 - `.harness/` — per-project state (PLAN.md, features.json, progress.md, init.sh, known-migrations.md) and `scripts/` (e.g. `cross-review.sh` for cross-model review via Gemini)
 - `.claude/commands/` + `.claude/agents/` + `.claude/skills/` — slash commands, sub-agents, and skills for Claude Code
 - `AGENTS.md` + `CLAUDE.md` — agent entry points (Antigravity, Cursor, Codex, Claude Code)
 
-With `--hooks`:
-- `.harness/verify.sh` — per-project verification script (edit to uncomment checks for your stack)
-- `.harness/hooks/precompact.sh` — appends a marker to `progress.md` before compaction wipes context
-- `.harness/hooks/session-start-compact.sh` — re-anchors Claude on the state files when a session resumes from compact
-- `.claude/settings.json` — `PostToolUse`, `PreCompact`, and `SessionStart(compact)` hooks. Merges safely into existing settings.
+With `--hooks` / `-Hooks`:
+- `.harness/verify.sh` + `.harness/verify.ps1` — per-project verification script (edit to uncomment checks for your stack)
+- `.harness/hooks/precompact.{sh,ps1}` — appends a marker to `progress.md` before compaction wipes context
+- `.harness/hooks/session-start-compact.{sh,ps1}` — re-anchors Claude on the state files when a session resumes from compact
+- `.claude/settings.json` — `PostToolUse`, `PreCompact`, and `SessionStart(compact)` hooks. Merges safely into existing settings. Canonical hook JSON lives in `templates/hooks/settings-fragment-{bash,pwsh}.json`.
 
-See [harness/hooks.md](harness/hooks.md) for the full design. Requires `jq` for `--hooks`. Idempotent — safe to re-run.
+See [harness/hooks.md](harness/hooks.md) for the full design. POSIX `--hooks` requires `jq`; Windows `-Hooks` uses PowerShell-native JSON. Idempotent — safe to re-run.
 
 **What `--update` does:** refreshes harness-authored files (commands, agents, skills, hooks, helper scripts) to the current harness version. Leaves user-authored files alone (`PLAN.md`, `progress.md`, `features.json`, `init.sh`, `verify.sh`, `known-migrations.md`, `AGENTS.md`, `CLAUDE.md`). Writes `.harness/.version` so subsequent runs can show a version delta.
 
