@@ -58,7 +58,7 @@ Target projects get the *empty* scaffold from [`templates/wiki/`](https://github
 
 - Documented in the top-of-file comment block of [`install.sh`](https://github.com/alexherrero/agentic-harness/blob/main/install.sh#L23-L28).
 - Asserted by [`scripts/smoke-install-bash.sh`](https://github.com/alexherrero/agentic-harness/blob/main/scripts/smoke-install-bash.sh) (and its pwsh twin): after `install.sh` runs, none of the files from `$HARNESS_ROOT/wiki/` or `$HARNESS_ROOT/scripts/` appear in the scratch install.
-- To be further tightened by a dedicated `scripts/test-install.sh` (follow-up task) that runs `diff -r templates/wiki/ <scratch>/wiki/` byte-for-byte.
+- Tightened by [`scripts/test-install.sh`](https://github.com/alexherrero/agentic-harness/blob/main/scripts/test-install.sh), which runs `diff -r templates/wiki/ <scratch>/wiki/` byte-for-byte plus a hash-based check that no content from `$HARNESS_ROOT/wiki/` appears in the scratch install. Runs in Linux CI on every PR.
 
 ## Consequences
 

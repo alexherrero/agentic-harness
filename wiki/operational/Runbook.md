@@ -117,7 +117,7 @@ This repo's own `wiki/` is hand-maintained dogfood. It references specific line 
 3. Confirm every `(Page-Name)` cross-link resolves: `python3 -c "..."` or visual scan of [`wiki/_Sidebar.md`](https://github.com/alexherrero/agentic-harness/blob/main/wiki/_Sidebar.md).
 4. Confirm the Quick Reference tables still match the shipped commands (especially `install.sh --update` ownership and the CI job list).
 
-If any of these drift, the correct response is to refresh the wiki page *before* the release, not to remove the anchor. The installer-boundary test under `scripts/` (added in a follow-up task) proves drift never leaks into target projects; this manual check keeps it from misinforming contributors to the harness repo.
+If any of these drift, the correct response is to refresh the wiki page *before* the release, not to remove the anchor. The installer-boundary test at [`scripts/test-install.sh`](https://github.com/alexherrero/agentic-harness/blob/main/scripts/test-install.sh) proves drift never leaks into target projects (it runs `diff -r templates/wiki/ <scratch>/wiki/` byte-for-byte on every CI run); this manual check keeps drift from misinforming contributors to the harness repo.
 
 ## Related
 
