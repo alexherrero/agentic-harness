@@ -112,12 +112,14 @@ If the project requires signed commits or has pre-commit hooks, let them run —
 
 **Do not start the next task.** The next task gets its own session: either `/work` again (clean context) or `/review` first if the task warranted it.
 
+If this task flipped a `features.json` entry's `passes` flag from `false` to `true` during `/review`, or the task finished the last feature in the plan, **suggest the `ship-release` skill** as the next step — do not auto-invoke it, the user may have more features queued. Phrase it: *"Feature `<id>` is now passing end-to-end. Consider invoking the `ship-release` skill to cut a tagged release."*
+
 Return to the user with a ≤5-bullet summary:
 - Task completed: task N, title
 - Files changed: count + the most notable path
 - Tests added: count, what they cover
 - Gates: all green (or: "N iterations needed, here's why")
-- Next: `/review` if the task is high-risk; otherwise `/work` for the next task, or `/release` if all tasks done
+- Next: `/review` if the task is high-risk; otherwise `/work` for the next task, or `/release` if all tasks done, or `ship-release` if a feature just went green
 
 ## When to invoke `/review` vs. going straight to the next `/work`
 

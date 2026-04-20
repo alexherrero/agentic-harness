@@ -206,7 +206,7 @@ Copy-AdapterDirs  (Join-Path $HarnessRoot 'adapters/antigravity/skills')        
 Copy-AdapterDirs  (Join-Path $HarnessRoot 'adapters/codex/skills')  '.agents/skills'
 Copy-AdapterFiles (Join-Path $HarnessRoot 'adapters/codex/agents') '*.toml' '.codex/agents'
 
-# .gemini/ — Gemini CLI adapter. dependabot-fixer reused from .agents/skills/.
+# .gemini/ — Gemini CLI adapter. Shared skills (dependabot-fixer, ship-release) reused from .agents/skills/.
 Copy-AdapterFiles (Join-Path $HarnessRoot 'adapters/gemini/commands') '*.toml' '.gemini/commands'
 Copy-AdapterFiles (Join-Path $HarnessRoot 'adapters/gemini/agents')   '*.md'   '.gemini/agents'
 Copy-UserFile     (Join-Path $HarnessRoot 'adapters/gemini/settings.json') '.gemini/settings.json'

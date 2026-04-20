@@ -6,15 +6,16 @@
 #   phase-commands: bugfix, plan, release, review, setup, work
 #   sub-agents:     adversarial-reviewer, adversarial-reviewer-cross,
 #                   documenter, explorer
-#   skills:         dependabot-fixer
+#   skills:         dependabot-fixer, ship-release
 #
 # Deliberate divergences (documented, not failures):
 #   - codex wraps phase-commands as skills with `harness-` prefix
 #     (its `/plan` and `/review` collide with built-in Codex commands).
 #   - antigravity puts sub-agents under skills/ (Antigravity has no
 #     separate sub-agent primitive).
-#   - gemini has no skills/ dir; dependabot-fixer is reused from the
-#     .agents/skills/ delivery (Codex adapter block).
+#   - gemini has no skills/ dir; shared skills (dependabot-fixer,
+#     ship-release) are reused from the .agents/skills/ delivery
+#     (Codex adapter block).
 #
 # Each failure mode below documents how to reproduce by hand.
 #
@@ -27,7 +28,7 @@ cd "$HARNESS_ROOT"
 
 CANON_COMMANDS=(bugfix plan release review setup work)
 CANON_AGENTS=(adversarial-reviewer adversarial-reviewer-cross documenter explorer)
-CANON_SKILLS=(dependabot-fixer)
+CANON_SKILLS=(dependabot-fixer ship-release)
 
 fail=0
 
@@ -87,12 +88,12 @@ assert_set "codex/agents"                   adapters/codex/agents            tom
 
 echo "== gemini =="
 # Gemini has native slash commands + markdown sub-agents. No skills/ dir:
-# dependabot-fixer is reused from .agents/skills/ (delivered by the codex
-# block in install.sh/install.ps1).
+# shared skills (dependabot-fixer, ship-release) are reused from
+# .agents/skills/ (delivered by the codex block in install.sh/install.ps1).
 assert_set "gemini/commands"                adapters/gemini/commands         toml "${CANON_COMMANDS[@]}"
 assert_set "gemini/agents"                  adapters/gemini/agents           md   "${CANON_AGENTS[@]}"
 if [[ -d adapters/gemini/skills ]]; then
-  echo "FAIL [gemini]: adapters/gemini/skills exists — dependabot-fixer should be reused from .agents/skills/, not duplicated here" >&2
+  echo "FAIL [gemini]: adapters/gemini/skills exists — shared skills should be reused from .agents/skills/, not duplicated here" >&2
   fail=1
 fi
 if [[ ! -f adapters/gemini/settings.json ]]; then

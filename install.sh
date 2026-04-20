@@ -222,8 +222,9 @@ done
 # subagents are markdown w/ YAML frontmatter. settings.json uses cp_user
 # semantics (never clobber existing user config — README documents the
 # AGENTS.md fileName merge if they already have a settings.json).
-# Note: dependabot-fixer lives in .agents/skills/ (copied by Codex block
-# above); Gemini reads that path natively per the Agent Skills standard.
+# Note: shared skills (dependabot-fixer, ship-release) live in
+# .agents/skills/ (copied by Codex block above); Gemini reads that path
+# natively per the Agent Skills standard.
 mkdir -p .gemini/commands .gemini/agents
 for f in "$HARNESS_ROOT"/adapters/gemini/commands/*.toml; do
   [[ -e "$f" ]] || continue
