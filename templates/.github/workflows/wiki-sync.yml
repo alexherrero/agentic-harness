@@ -1,0 +1,86 @@
+name: "[W] Update Wiki"
+
+# Mirrors wiki/ in this repo to the GitHub Wiki on every push to the
+# default branch that touches wiki/**. Mirror semantics — add, edit,
+# rename, delete. Fails loudly on duplicate basenames across subdirs
+# (GH Wiki resolves page links by basename, so collisions would silently
+# clobber). Gracefully skips when the wiki is disabled on the repo.
+#
+# Harness-authored; refreshed on install.sh --update. The full
+# convention spec lives at:
+# https://github.com/alexherrero/agentic-harness/blob/main/harness/documentation.md
+
+on:
+  push:
+    paths:
+      - 'wiki/**'
+
+permissions:
+  contents: write
+
+jobs:
+  update-wiki:
+    # Only run on pushes to the repo's default branch. Filtering here
+    # (rather than in `on.push.branches`) lets the workflow follow
+    # default-branch renames automatically.
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync wiki/ to GitHub Wiki
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          # Safety: if wiki/ doesn't exist in the source, bail — don't
+          # mirror an empty tree over a populated wiki.
+          if [[ ! -d wiki ]]; then
+            echo "::notice::No wiki/ directory in source — nothing to sync."
+            exit 0
+          fi
+
+          # Fail loudly on duplicate basenames across subdirs. GitHub
+          # Wiki resolves [text](Page-Name) links by flat basename, so
+          # two files with the same name (even in different subdirs)
+          # would silently overwrite each other on sync.
+          # Portable: avoid GNU-only `find -printf` so the shell body
+          # can be exercised locally on macOS / BSD find too.
+          dupes=$(find wiki -type f -name '*.md' | awk -F/ '{print $NF}' | sort | uniq -d || true)
+          if [[ -n "$dupes" ]]; then
+            echo "::error::Duplicate wiki basenames (would collide on GitHub Wiki):"
+            while IFS= read -r name; do
+              echo "::error::  $name"
+              find wiki -type f -name "$name" | sed 's|^|::error::    |'
+            done <<< "$dupes"
+            exit 1
+          fi
+
+          # Graceful skip if the wiki is disabled or inaccessible.
+          # GitHub only provisions <repo>.wiki.git once a wiki has been
+          # initialized (first page created via the UI).
+          wiki_url="https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.wiki.git"
+          if ! git ls-remote "$wiki_url" >/dev/null 2>&1; then
+            echo "::notice::GitHub Wiki not enabled for ${REPO}. Skipping sync."
+            exit 0
+          fi
+
+          git clone "$wiki_url" wiki-repo
+
+          # Mirror: add / edit / rename / delete. Preserve subdirs.
+          rsync -a --delete --exclude='.git' wiki/ wiki-repo/
+
+          cd wiki-repo
+          git add -A
+          if git diff --cached --quiet; then
+            echo "::notice::No wiki changes to sync."
+            exit 0
+          fi
+
+          git -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              -c user.name='github-actions[bot]' \
+              commit -m "sync: ${SHA:0:7}"
+          git push origin HEAD:master
