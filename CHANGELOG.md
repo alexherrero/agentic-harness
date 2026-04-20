@@ -5,6 +5,22 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.8.1] — 2026-04-20 — CI hardening + dogfood wiki
+
+Follow-up to v0.8.0. Tightens the cross-platform CI gate suite, ships the agentic-harness repo's own wiki as a worked example of the v0.8.0 documentation convention, and fixes a PowerShell parse regression in the verify.ps1 template.
+
+### Fixed
+
+- `templates/verify.ps1` — empty `switch` statement (all clauses commented out) failed to parse on pwsh hosts with "Missing condition in switch statement clause". Added a required `default { }` clause so the template parses as shipped. Caught by the cross-platform CI added in v0.8.0.
+
+### Internal
+
+- **Cross-platform harness-integrity CI** — beyond install-smoke, the three per-OS workflows now run `check-parity.sh`, `validate-adapters.py`, `check-references.py`, `check-syntax.{sh,ps1}`, and `check-integrity-{bash,pwsh}` against a scratch install on every push / PR. A POSIX path-separator bug in `check-references.py` surfaced as part of this work and was fixed.
+- **Dogfood wiki** — `wiki/` at repo root now contains this project's own documentation under the v0.8.0 convention: Home, Sidebar, one page per subdir (Getting-Started / Runbook / Product-Intent / Overview), plus ADRs 0001 (phase-gated workflow) and 0002 (documentation convention). The installer boundary is preserved — `install.sh` still copies only from `templates/wiki/`, never from this repo's own `wiki/`.
+- **Dedicated installer-boundary test** — `scripts/test-install.sh` runs `diff -r templates/wiki/ <scratch>/wiki/` byte-for-byte plus a SHA-256 hash-based leak detector for each file under `$HARNESS_ROOT/wiki/`, wired into Linux CI. Proves the boundary on every PR.
+
+[v0.8.1]: https://github.com/alexherrero/agentic-harness/releases/tag/v0.8.1
+
 ## [v0.8.0] — 2026-04-19 — Documentation convention, three new full-parity adapters, Windows support, release automation
 
 This is the largest release in the project's history. Four themes: (1) a first-class
