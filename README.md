@@ -21,6 +21,30 @@ This harness operates using six phase-gated slash commands, three sub-agents (`e
 
 See [harness/principles.md](harness/principles.md) for additional information on the thought process behind this harness.
 
+## Install
+
+Installation will provide slash commands, sub-agents, skills, per-project state under `.harness/`, a `wiki/` scaffold, and `AGENTS.md` + `CLAUDE.md`. Idempotent; `--hooks` is opt-in. 
+
+### MacOS / Linux
+
+```bash
+# First install (add --hooks to register verification hooks):
+/path/to/agentic-harness/install.sh [--hooks] /path/to/your-project
+
+# To refresh harness-authored files, leaves your edits alone:
+/path/to/agentic-harness/install.sh --update /path/to/your-project
+```
+
+### Windows
+
+Requires PowerShell 7+
+
+```powershell
+pwsh -NoProfile -File C:\path\to\agentic-harness\install.ps1 [-Hooks] C:\path\to\your-project
+```
+
+Full details in [wiki/how-to/Install-Into-Project.md](wiki/how-to/Install-Into-Project.md).
+
 ## How it works
 
 ```mermaid
@@ -38,24 +62,6 @@ flowchart LR
     S --> ST
     S --> W
 ```
-
-## Install
-
-```bash
-# First install (add --hooks to register verification hooks):
-/path/to/agentic-harness/install.sh [--hooks] /path/to/your-project
-
-# Refresh harness-authored files, leaves your edits alone:
-/path/to/agentic-harness/install.sh --update /path/to/your-project
-```
-
-On Windows (PowerShell 7+), `install.ps1` is semantically equivalent:
-
-```powershell
-pwsh -NoProfile -File C:\path\to\agentic-harness\install.ps1 [-Hooks] C:\path\to\your-project
-```
-
-Drops in slash commands, sub-agents, skills, per-project state under `.harness/`, a `wiki/` scaffold, and `AGENTS.md` + `CLAUDE.md`. Idempotent; `--hooks` is opt-in; mixed-OS teams are covered (both `.sh` and `.ps1` helpers ship). Full details in [wiki/how-to/Install-Into-Project.md](wiki/how-to/Install-Into-Project.md).
 
 ## Phases
 
