@@ -6,14 +6,22 @@
 [![Latest release](https://img.shields.io/github/v/release/alexherrero/agentic-harness?label=latest&color=blue)](https://github.com/alexherrero/agentic-harness/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-A small, opinionated harness for doing production-quality engineering with AI coding agents (Claude Code, Antigravity, Codex, Gemini, and tools that read `AGENTS.md`).
+A small, opinionated harness for doing production-quality engineering with AI coding agents. Works with Claude Code, Antigravity, Codex, Gemini-CLI, and tools that read `AGENTS.md`).
 
-Six phase-gated slash commands, three sub-agents (`explorer`, `adversarial-reviewer`, `documenter`), deterministic verification, on-disk state, and a narrative `wiki/` that syncs to the GitHub Wiki. Not a 150-agent supermarket — installs into any project in one command.
+This harness follows established principles from research to help improve code quality and consistency when coding with Agents. While it can be used with YOLO mode and other fully automated coding workflows, it is intended more for workflows that keep a human in the loop.
 
 [![Works with Claude Code](https://img.shields.io/badge/works%20with-Claude%20Code-D97706?style=flat)](adapters/claude-code/)
 [![Works with Antigravity](https://img.shields.io/badge/works%20with-Antigravity-7C3AED?style=flat)](adapters/antigravity/)
 [![Works with Codex](https://img.shields.io/badge/works%20with-Codex-10A37F?style=flat)](adapters/codex/)
-[![Works with Gemini](https://img.shields.io/badge/works%20with-Gemini-4285F4?style=flat)](adapters/gemini/)
+[![Works with Gemini-CLI](https://img.shields.io/badge/works%20with-Gemini-4285F4?style=flat)](adapters/gemini/)
+
+## The Basics
+
+This harness operates using six phase-gated slash commands, three sub-agents (`explorer`, `adversarial-reviewer`, `documenter`), deterministic verification, on-disk state, and a narrative `wiki/` that syncs to the GitHub Wiki. It installs in your github project with a single command. If you are looking for the kitchen sink, look elsewhere. Otherwise, welcome and enjoy.
+
+See [harness/principles.md](harness/principles.md) for additional information on the thought process behind this harness.
+
+## How it works
 
 ```mermaid
 flowchart LR
@@ -30,10 +38,6 @@ flowchart LR
     S --> ST
     S --> W
 ```
-
-## Principles
-
-Phase-gated workflow, state on disk (not context), single-threaded execution with read-only fan-out, deterministic gates before LLM judgment, adversarial review framing, and re-audit on every model bump. Full reasoning in [harness/principles.md](harness/principles.md).
 
 ## Install
 
