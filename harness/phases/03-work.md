@@ -104,7 +104,7 @@ One task, one commit, unless the project convention says otherwise (squash-on-me
 <1-2 sentence why. Not what — the diff shows what.>
 ```
 
-Follow project convention for trailers (`Co-Authored-By`, issue references, etc.). Check recent `git log` for the style.
+Follow project convention for trailers (issue references, `Signed-off-by`, etc.) — check recent `git log` for the style. Do **not** add a `Co-Authored-By: Claude …` trailer; the user is the sole author of intent, the agent is the tool. Only add such a trailer if the user explicitly opts in for that commit.
 
 If the project requires signed commits or has pre-commit hooks, let them run — do not use `--no-verify`.
 
