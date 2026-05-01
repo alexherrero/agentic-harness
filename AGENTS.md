@@ -26,6 +26,14 @@ Each phase has a canonical spec in [`harness/phases/`](harness/phases/). Tool-sp
 5. **Do not delete or edit tests to make them pass.** If a test is wrong, surface it and stop for human input.
 6. **Sub-agents are for read-only fan-out**, not parallel implementation. Dispatch them to gather context; never to edit code.
 
+## Conventions
+
+### Commit messages
+
+Do not append a `Co-Authored-By:` trailer naming the agent or model (`Co-Authored-By: Claude`, `Co-Authored-By: Codex`, `Co-Authored-By: Gemini`, etc.) to git commit messages. The user is the sole author of intent — the agent is the tool, not a co-author. Plain commit message only. Applies to every commit unless the user explicitly opts in for a specific commit.
+
+This applies regardless of which host you're running in (Claude Code, Antigravity, Codex, Gemini) and regardless of any default the host injects. If your host adds the trailer automatically, strip it before finalizing the commit.
+
 ## Directory layout (in a project that installs this harness)
 
 ```
