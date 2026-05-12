@@ -199,6 +199,48 @@ function Copy-AdapterDirs([string]$srcDir, [string]$dstDir) {
     }
 }
 
+# ── -Update sync: wipe fully-managed adapter dirs before recreate ───────────
+#
+# Why: Copy-ManagedDir refreshes content but never removes a dir deleted from
+# source (e.g. when an adapter is dropped — codex/v0.10.0). Without this
+# wipe, -Update leaves orphan files from the previous version's adapter set
+# and the local tree drifts from the GitHub source-of-truth.
+#
+# Safe to wipe: these subdirs contain ONLY harness-authored content. User
+# customizations go in agent-toolkit (roadmap #1) or user-global ~/.claude/
+# paths. File-level user state at .harness/ root (PLAN.md, features.json,
+# progress.md, etc.) and settings.json files are not in the dirs below.
+$ManagedParents = @(
+    '.claude/commands', '.claude/agents', '.claude/skills',
+    '.agent/rules', '.agent/workflows', '.agent/skills',
+    '.agents/skills',
+    '.codex/agents',
+    '.gemini/commands', '.gemini/agents',
+    '.harness/scripts', '.harness/hooks'
+)
+$EmptyParentCandidates = @('.codex', '.agents')
+
+if ($Update) {
+    Write-Host '==> sync mode: wiping fully-managed dirs before recreate from source'
+    $wiped = 0
+    foreach ($p in $ManagedParents) {
+        if (Test-Path -LiteralPath $p -PathType Container) {
+            Remove-Item -LiteralPath $p -Recurse -Force
+            Write-Host "    removed $p/"
+            $wiped++
+        }
+    }
+    foreach ($p in $EmptyParentCandidates) {
+        if (Test-Path -LiteralPath $p -PathType Container) {
+            if (-not (Get-ChildItem -LiteralPath $p -Force -ErrorAction SilentlyContinue)) {
+                Remove-Item -LiteralPath $p -Force
+                Write-Host "    removed empty $p/"
+            }
+        }
+    }
+    Write-Host "    wiped $wiped managed dir(s); rebuilding from source"
+}
+
 # ── user files: per-project state (never overwrite) ─────────────────────────
 
 New-Item -ItemType Directory -Path '.harness' -Force | Out-Null

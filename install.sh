@@ -176,6 +176,60 @@ cp_managed_dir() {
   fi
 }
 
+# ── --update sync: wipe fully-managed adapter dirs before recreate ──────────
+#
+# Why: cp_managed_dir refreshes content but never removes a dir that has been
+# deleted from source (e.g. when an adapter is dropped — codex/v0.10.0).
+# Without this wipe, --update leaves orphan files from the previous version's
+# adapter set, and the local tree drifts from the GitHub source-of-truth.
+#
+# What's safe to wipe: these subdirs contain ONLY harness-authored content.
+# User customizations go in agent-toolkit (roadmap #1) or in user-global
+# ~/.claude/ paths. NEVER add a user-state path to this list — file-level
+# entries at .harness/ root (PLAN.md, features.json, progress.md, init.sh,
+# verify.sh, known-migrations.md) and settings.json files are file-level
+# (not dirs) so wiping the dirs below does not touch them.
+MANAGED_PARENTS=(
+  .claude/commands
+  .claude/agents
+  .claude/skills
+  .agent/rules
+  .agent/workflows
+  .agent/skills
+  .agents/skills
+  .codex/agents      # legacy — wiped on first --update past v0.10.0
+  .gemini/commands
+  .gemini/agents
+  .harness/scripts
+  .harness/hooks
+)
+
+# Top-level dirs that should be removed if empty after wiping their managed
+# subdirs. Keeps the tree clean after host removals (e.g. .codex/).
+EMPTY_PARENT_CANDIDATES=(
+  .codex
+  .agents
+)
+
+if [[ $UPDATE_MODE -eq 1 ]]; then
+  echo "==> sync mode: wiping fully-managed dirs before recreate from source"
+  wiped=0
+  for p in "${MANAGED_PARENTS[@]}"; do
+    if [[ -d "$p" ]]; then
+      rm -rf "$p"
+      echo "    removed $p/"
+      wiped=$((wiped + 1))
+    fi
+  done
+  for p in "${EMPTY_PARENT_CANDIDATES[@]}"; do
+    if [[ -d "$p" ]] && [[ -z "$(ls -A "$p" 2>/dev/null)" ]]; then
+      rmdir "$p"
+      echo "    removed empty $p/"
+    fi
+  done
+  echo "    wiped $wiped managed dir(s); rebuilding from source"
+fi
+
 # ── user files: per-project state (never overwrite) ─────────────────────────
 
 mkdir -p .harness
