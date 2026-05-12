@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Universal instructions for AI coding agents working in a project using `agentic-harness`. Antigravity, Codex, Cursor, and other tools that read `AGENTS.md` should use this as the entry point. Claude Code users should also read this file (it's linked from `CLAUDE.md`).
+Universal instructions for AI coding agents working in a project using `agentic-harness`. Antigravity, Gemini CLI, Cursor, and other tools that read `AGENTS.md` should use this as the entry point. Claude Code users should also read this file (it's linked from `CLAUDE.md`).
 
 ## What this harness is
 
@@ -30,9 +30,9 @@ Each phase has a canonical spec in [`harness/phases/`](harness/phases/). Tool-sp
 
 ### Commit messages
 
-Do not append a `Co-Authored-By:` trailer naming the agent or model (`Co-Authored-By: Claude`, `Co-Authored-By: Codex`, `Co-Authored-By: Gemini`, etc.) to git commit messages. The user is the sole author of intent — the agent is the tool, not a co-author. Plain commit message only. Applies to every commit unless the user explicitly opts in for a specific commit.
+Do not append a `Co-Authored-By:` trailer naming the agent or model (`Co-Authored-By: Claude`, `Co-Authored-By: Gemini`, etc.) to git commit messages. The user is the sole author of intent — the agent is the tool, not a co-author. Plain commit message only. Applies to every commit unless the user explicitly opts in for a specific commit.
 
-This applies regardless of which host you're running in (Claude Code, Antigravity, Codex, Gemini) and regardless of any default the host injects. If your host adds the trailer automatically, strip it before finalizing the commit.
+This applies regardless of which host you're running in (Claude Code, Antigravity, Gemini CLI) and regardless of any default the host injects. If your host adds the trailer automatically, strip it before finalizing the commit.
 
 ## Directory layout (in a project that installs this harness)
 

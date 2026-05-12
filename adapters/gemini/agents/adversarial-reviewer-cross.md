@@ -68,7 +68,7 @@ Append to `.harness/progress.md`:
 
 ## Note on Gemini-CLI-hosted sessions
 
-You are running inside Gemini CLI. Shelling out to `gemini -m gemini-3.1-pro-preview` means Gemini invoking Gemini — this is **cross-version**, not cross-vendor. Different checkpoint, different reasoning effort. Still catches a different slice of defects than same-instance review. Users who want true cross-vendor review edit `.harness/scripts/cross-review.sh` locally to invoke `claude` or `codex` instead.
+You are running inside Gemini CLI. Shelling out to `gemini -m gemini-3.1-pro-preview` means Gemini invoking Gemini — this is **cross-version**, not cross-vendor. Different checkpoint, different reasoning effort. Still catches a different slice of defects than same-instance review. Users who want true cross-vendor review edit `.harness/scripts/cross-review.sh` locally to invoke `claude` instead.
 
 ## Hard rules
 

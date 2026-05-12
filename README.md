@@ -6,14 +6,13 @@
 [![Latest release](https://img.shields.io/github/v/release/alexherrero/agentic-harness?label=latest&color=blue)](https://github.com/alexherrero/agentic-harness/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-A small, opinionated harness for doing production-quality engineering with AI coding agents. Works with Claude Code, Antigravity, Codex, Gemini-CLI, and tools that read `AGENTS.md`).
+A small, opinionated harness for doing production-quality engineering with AI coding agents. Works with Claude Code, Antigravity, Gemini CLI, and tools that read `AGENTS.md`.
 
 This harness follows established principles from research to help improve code quality and consistency when coding with Agents. While it can be used with YOLO mode and other fully automated coding workflows, it is intended more for workflows that keep a human in the loop.
 
 [![Works with Claude Code](https://img.shields.io/badge/works%20with-Claude%20Code-D97706?style=flat)](adapters/claude-code/)
 [![Works with Antigravity](https://img.shields.io/badge/works%20with-Antigravity-7C3AED?style=flat)](adapters/antigravity/)
-[![Works with Codex](https://img.shields.io/badge/works%20with-Codex-10A37F?style=flat)](adapters/codex/)
-[![Works with Gemini-CLI](https://img.shields.io/badge/works%20with-Gemini-4285F4?style=flat)](adapters/gemini/)
+[![Works with Gemini CLI](https://img.shields.io/badge/works%20with-Gemini%20CLI-4285F4?style=flat)](adapters/gemini/)
 
 ## The Basics
 
@@ -54,7 +53,7 @@ Full details in [wiki/how-to/Install-Into-Project.md](wiki/how-to/Install-Into-P
 ```mermaid
 flowchart LR
     U([User])
-    H[Host<br/>Claude Code · Antigravity<br/>Codex · Gemini]
+    H[Host<br/>Claude Code · Antigravity · Gemini CLI]
     A[Adapter<br/>commands · agents · skills]
     S[Canonical specs<br/>harness/]
     ST[(.harness/<br/>state)]

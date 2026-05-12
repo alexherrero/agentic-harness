@@ -4,11 +4,11 @@ Full-parity adapter for running agentic-harness in [Google Gemini CLI](https://g
 
 ## Why Gemini is the richest target surface
 
-Of the four adapter targets (Claude Code, Antigravity, Codex, Gemini), **Gemini CLI has the closest parity to Claude Code's native surface**:
+Of the three adapter targets (Claude Code, Antigravity, Gemini), **Gemini CLI has the closest parity to Claude Code's native surface**:
 
 - **Native custom slash commands** (TOML) — phase entrypoints map 1:1 with no renaming.
 - **Native subagents with fresh context + tool allowlists** — same isolation guarantees as Claude Code's sub-agents.
-- **Shared `.agents/skills/` convention** — `dependabot-fixer` is reused from the Codex adapter's install (no duplication).
+- **Shared `.agents/skills/` convention** — shared skills (`dependabot-fixer`, `doctor`, `migrate-to-diataxis`, `ship-release`) are delivered to `.agents/skills/` by `install.sh` per the Agent Skills standard, and Gemini reads that path natively (no duplication needed).
 - **AGENTS.md support** via `context.fileName` setting — the universal harness contract loads natively.
 
 This means the adapter is a near-straight port from Claude Code with format translations (markdown commands → TOML commands; Claude Code sub-agent frontmatter → Gemini sub-agent frontmatter).
@@ -19,7 +19,7 @@ This means the adapter is a near-straight port from Claude Code with format tran
 |---|---|---|
 | `.claude/commands/*.md` | `.gemini/commands/*.toml` | Phase entrypoints (setup/plan/work/review/release/bugfix) |
 | `.claude/agents/*.md` | `.gemini/agents/*.md` | Sub-agents (explorer, adversarial-reviewer, adversarial-reviewer-cross, documenter) |
-| `.claude/skills/dependabot-fixer/` | `.agents/skills/dependabot-fixer/` | Project skill (shared convention — delivered by Codex adapter block) |
+| `.claude/skills/dependabot-fixer/` | `.agents/skills/dependabot-fixer/` | Project skill (shared convention — delivered by `install.sh` per Agent Skills standard) |
 | `CLAUDE.md` pointer | `.gemini/settings.json` + repo-root `AGENTS.md` | Operating contract (Gemini loads via `context.fileName`) |
 
 ## Layout
@@ -42,7 +42,7 @@ adapters/gemini/
 └── settings.json                               (→ target's .gemini/settings.json)
 ```
 
-No `skills/` directory — `dependabot-fixer` is delivered to `.agents/skills/` by the Codex adapter block in `install.sh` / `install.ps1`, and Gemini reads that path natively per the Agent Skills spec.
+No `skills/` directory — shared skills (`dependabot-fixer`, `doctor`, `migrate-to-diataxis`, `ship-release`) are delivered to `.agents/skills/` by `install.sh` / `install.ps1` (sourced from `adapters/claude-code/skills/`; parity-enforced identical content), and Gemini reads that path natively per the Agent Skills spec.
 
 ## Invocation
 
@@ -99,7 +99,7 @@ If you prefer the Gemini-native explorer, both remain available:
 
 `adversarial-reviewer-cross` shells out to `gemini -m gemini-3.1-pro-preview` via `.harness/scripts/cross-review.sh`. On a Gemini-CLI-hosted session, this means Gemini invoking Gemini — **cross-version rather than cross-vendor**. Gemini-3.1-pro-preview vs the session default model is still a real model difference; it catches a different slice of defects than same-instance-of-same-model review.
 
-Users who want true cross-vendor review can edit `.harness/scripts/cross-review.sh` locally to invoke `claude` or `codex` instead of `gemini`. The script abstraction remains.
+Users who want true cross-vendor review can edit `.harness/scripts/cross-review.sh` locally to invoke `claude` instead of `gemini`. The script abstraction remains.
 
 ## Single source of truth
 
