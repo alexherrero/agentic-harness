@@ -5,6 +5,40 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.0] — 2026-05-11 — Three-adapter scope; Codex dropped; 1.0.0 commitment
+
+**BREAKING:** Codex adapter removed. Supported hosts narrow from four (Claude Code, Antigravity, Codex, Gemini CLI) to three (Claude Code, Antigravity, Gemini CLI). Anyone running agentic-harness through Codex must migrate to one of the three remaining adapters — the phase-gated workflow itself is host-agnostic, so migration is install + relearn the host-specific invocation surface.
+
+The version bump from 0.9.x to 1.0.0 reflects the breaking change *plus* a commitment: the harness has had enough churn (v0.1.0 → v0.9.0) to feel stable, and semver becomes firm going forward — major = breaking, minor = additive, patch = fixes. Future host removals, fundamental shape changes, or invariant inversions become explicit major-version events. Additive changes (new skills, the planned `agent-toolkit` repo split, ContextVault, design skill) become clear minor bumps. See [ADR 0005](https://github.com/alexherrero/agentic-harness/blob/main/wiki/explanation/decisions/0005-drop-codex-support.md) for the full decision narrative.
+
+### Removed
+
+- **Codex adapter** (`adapters/codex/`, 15 files: README, 4 sub-agents in TOML, 10 skill dirs — 7 `harness-` prefixed phase-commands-as-skills + 4 shared skills).
+- **Codex adapter research note** (`harness/agents/codex-adapter-research.md`, 294-line deep-dive on Codex-specific design — dead weight once the adapter is gone).
+- **Codex-specific code in scripts**: `scripts/check-parity.sh`'s `== codex ==` block + divergence comments; `scripts/check-references.py`'s `CODEX_PHASE_PREFIX` constant + codex branch in `expected_canonical_for`; `scripts/validate-adapters.py`'s `validate_codex_agents()` function + codex skills-dir entry; codex expected-files lines in `scripts/smoke-install-{bash,pwsh}` and `scripts/check-integrity-{bash,pwsh}`.
+
+### Added
+
+- **[ADR 0005 — Drop Codex support; three-adapter scope](https://github.com/alexherrero/agentic-harness/blob/main/wiki/explanation/decisions/0005-drop-codex-support.md)**: documents Context (5 reasons codex was dropped), Decision (7 concrete actions including the v1.0.0 framing), Consequences (5 positive + 4 negative), and load-bearing re-audit assumptions.
+- **True-sync `--update` semantics.** `install.sh` and `install.ps1` now wipe twelve fully-harness-authored subdirs before recreating from source on `--update`. Orphan paths from previous versions (e.g. `.codex/` for users upgrading from v0.9.0) are automatically removed and reported as `removed legacy <path>/`. User state files at `.harness/` root, merged `settings.json` files, `wiki/**`, and root `AGENTS.md`/`CLAUDE.md` are deliberately preserved. The generalized mechanism means future host or skill removals also clean up automatically — codex is the first user, not a special case. Documented in [Update-Installed-Harness](https://github.com/alexherrero/agentic-harness/blob/main/wiki/how-to/Update-Installed-Harness.md).
+- **`no-Co-Authored-By` convention** added to `AGENTS.md` + `CLAUDE.md`. Host-agnostic rule: agents do not append `Co-Authored-By:` trailers naming the model or host. Sole-author-of-intent framing.
+
+### Changed
+
+- **Adapter parity narrows to three hosts.** `check-parity.sh` enforces the new canonical set; no more `harness-` prefix divergence (was only needed for Codex's collision with built-in `/plan` and `/review`). Removing the prefix requirement simplifies the parity invariant.
+- **Shared-skill delivery becomes explicit.** `.agents/skills/` (read by Gemini per the Agent Skills standard) was previously delivered by the Codex install block as a side effect. Now `install.sh` explicitly enumerates the four shared skills (`dependabot-fixer`, `doctor`, `migrate-to-diataxis`, `ship-release`) and sources them from `adapters/claude-code/skills/` (parity-enforced identical content; cleanest source — `antigravity/skills/` would over-deliver because it mixes sub-agents-as-skills).
+- **Repo-public surfaces scrubbed of Codex mentions.** README "works with" chip row drops Codex (now 3 chips); intro paragraph drops Codex from host list; Mermaid Host node collapses to single-line three-host listing; AGENTS.md intro tool-list and Co-Authored-By convention examples drop Codex; `harness/skills/doctor.md` and `ship-release.md` adapter tables drop Codex; `adapters/gemini/README.md` reframes 5 Codex-block references to actual `install.sh`/Agent Skills standard delivery; `harness/agents/gemini-adapter-research.md` 10 codex-comparison phrasings reframed to current state.
+- **Wiki updated to three-adapter shape.** 9 wiki pages scrubbed across `explanation/` (Product-Intent, GitHub-Projects-Integration, How-The-Pieces-Fit including 2 ASCII diagrams), `how-to/` (Cut-A-Release, Install-Into-Project, Update-Installed-Harness with new v1.0.0 sync semantics section), `tutorials/01-First-Install.md`, and `reference/` (Repo-Layout with rewritten three-adapters table + Quick Reference + tree diagram, Installer-CLI with v1.0.0 sync details). Home.md and _Sidebar.md gain ADR 0005 row in Decisions section. Historical entries in CHANGELOG.md and `wiki/reference/Completed-Features.md` past-release sections deliberately preserved as history.
+- **README polish (multi-commit run).** Mirrored install commands across MacOS/Linux and Windows sections; eliminated redundant license callout; QoL updates (badges, "works with" chip row, Mermaid architecture diagram); intro paragraph framing tightened around production-quality engineering posture.
+
+### Internal
+
+- **5-task Codex-removal sweep plan completed.** Tracked in `.harness/PLAN.md`: task 1 (adapter dir + canonical specs + scripts cleanup with the `codex-adapter-research.md` deletion decision); task 2 (installers + smoke tests — flagged Gemini's shared-skill delivery as the load-bearing risk and resolved it by sourcing from `claude-code/skills/`); task 2 amendment (true-sync `--update` generalized beyond codex cleanup per user direction "github is SoT for my personal setup"); task 3 (README + CONTRIBUTING + AGENTS + CLAUDE + adapter READMEs scrub); task 4 (wiki + ADR 0005); task 5 (release).
+- **Stats**: 26 files changed task 1 (25 ins, 1204 del). 2 files changed task 2 (25 ins, 19 del). 2 files changed task 2 amendment (96 ins). 4 files changed task 3 (12 ins, 13 del). 12 files changed task 4 (99 ins, 27 del). Net: ~46 files touched, ~1300 lines removed.
+- **CI green across all three per-OS workflows** on every commit in the range. Smoke tests intentionally not run as a gate during task 1 (install.sh was inconsistent post-adapter-removal); reintroduced as a gate in task 2 where the installer fix landed.
+
+[v1.0.0]: https://github.com/alexherrero/agentic-harness/releases/tag/v1.0.0
+
 ## [v0.9.0] — 2026-04-23 — Diátaxis documentation spec + `/doctor` skill
 
 Two substantial threads landed together. First, the 7-task Diátaxis rollout (ADR 0004): wiki scaffold and dogfood wiki reshaped to the four-mode layout (tutorials/how-to/reference/explanation), `documenter` rewired to write to the new mode dirs, `scripts/check-wiki.py` shipped as a structural gate and flipped to `--strict` in CI, and a `migrate-to-diataxis` skill for one-shot migration of already-installed projects. Second, a new user-invocable `/doctor` skill — companion to `telemetry.sh` — that verifies the harness install is correctly wired up in the host, with an opt-in `--live` mode that actually dispatches each sub-agent and dry-runs each skill to prove end-to-end wiring.

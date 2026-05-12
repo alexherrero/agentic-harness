@@ -8,8 +8,43 @@ This page is **narrative**, not a changelog — the authoritative version log is
 
 | Date | Plan / release | Features flipped | Notes |
 |---|---|---|---|
+| 2026-05-11 | [v1.0.0](https://github.com/alexherrero/agentic-harness/releases/tag/v1.0.0) — Three-adapter scope; Codex dropped; 1.0.0 commitment | **BREAKING**: Codex adapter removed; true-sync `--update` semantics; firm-semver 1.0.0 floor | 13 commits (`v0.9.0..v1.0.0`); new [ADR 0005](0005-drop-codex-support); ~1300 lines net removed; first major version; parity invariant simplified to three adapters |
 | 2026-04-23 | [v0.9.0](https://github.com/alexherrero/agentic-harness/releases/tag/v0.9.0) — Diátaxis documentation spec + `/doctor` skill | Diátaxis rollout (ADR 0004, 7-task plan); `migrate-to-diataxis` skill; mode-aware `documenter` writes; `/doctor` skill for post-install verification | 10 commits (`v0.8.7..v0.9.0`); new [ADR 0004](0004-diataxis-documentation-spec); two new shared skills; `scripts/check-wiki.py` shipped + flipped to `--strict`; wiki dogfood reshaped with `git mv` for blame |
 | 2026-04-21 | [v0.8.7](https://github.com/alexherrero/agentic-harness/releases/tag/v0.8.7) — GitHub Projects wiring + documenter end-to-end dogfood | `feat-gh-projects-integration` (pending — gated on offer-cycle observation); `feat-documenter-subagent` (this sweep is the dogfood) | 4 commits (`801dbd7..HEAD`), 23 files; new [ADR 0003](0003-ProjectsV2-Ownership-And-Linking), new [Feature page](GitHub-Projects-Integration) |
+
+## 2026-05-11 — v1.0.0: Three-adapter scope; Codex dropped; 1.0.0 commitment
+
+**Commit range:** `v0.9.0..v1.0.0` (13 commits on `main`). Release notes: [v1.0.0](https://github.com/alexherrero/agentic-harness/releases/tag/v1.0.0). ADR: [0005 — Drop Codex support](0005-drop-codex-support).
+
+**What shipped:**
+
+- **Codex adapter removed.** Supported hosts narrow from four to three: Claude Code, Antigravity, Gemini CLI. `adapters/codex/` (15 files), `harness/agents/codex-adapter-research.md` (294 lines), and codex-specific code across five scripts all gone. Repo-public surfaces (README, AGENTS.md, adapter READMEs, 9 wiki pages) scrubbed of Codex mentions. Historical entries in CHANGELOG.md and past-release sections of this page deliberately preserved as history.
+- **True-sync `--update` semantics.** Beyond removing the codex install code, `install.sh` and `install.ps1` now wipe twelve fully-harness-authored subdirs before recreating from source on `--update`. Orphan paths from prior versions (e.g. `.codex/` from v0.9.0 installs) are automatically removed and reported as `removed legacy <path>/`. User state files at `.harness/` root, merged `settings.json` files, `wiki/**`, and root `AGENTS.md`/`CLAUDE.md` are deliberately preserved. The mechanism generalizes: any future host or skill removal also auto-cleans without per-removal patches.
+- **v1.0.0 commitment.** Semver becomes firm going forward: major = breaking, minor = additive, patch = fixes. The harness's pre-1.0 churn period closes; future breaking changes (e.g. dropping Antigravity, restructuring adapters) become explicit major-version events, and the planned roadmap (agent-toolkit repo split, ContextVault, design skill, base-skill primitives, evidence-tracking) becomes clear minor bumps.
+
+**Why it shipped this shape:**
+
+The Codex adapter had been paying real ongoing costs without offsetting workflow value: Codex's built-in `/plan` and `/review` collisions forced a `harness-` prefix on every Codex phase-command (the only adapter with that divergence); the codex install block was a side-channel for delivering Gemini's shared skills (`.agents/skills/`), which made the codex removal load-bearing for two hosts; and the personal-dev-env scope had narrowed to Claude Code + Antigravity + Gemini CLI. Combined with the harness's maturity, this was the right moment to graduate to v1.0.0 — the host-scope reduction is a breaking change anyway, and a firm-semver 1.0 floor better communicates the stability commitment than another 0.x point release.
+
+The `--update` true-sync amendment is worth noting separately. The user surfaced it during task 2 closeout: "removing the codex install code stops new installs from creating codex paths, but `--update` on an existing v0.9.0 install leaves orphan files." Rather than ship a codex-specific cleanup patch, the fix was generalized: declare `MANAGED_PARENTS` (12 subdirs that are fully harness-authored), wipe them on `--update`, then run the normal install flow which recreates from source. Codex becomes the first user of a mechanism that handles all future removals.
+
+**What it doesn't do:**
+
+- Anyone running agentic-harness through Codex has no harness adapter post-v1.0.0. The phase-gated workflow is host-agnostic, but they must migrate to one of the three remaining adapters.
+- Codex's built-in `/plan` and `/review` semantics will not be harness-aware in a Codex session against a harness-installed project.
+- `cross-review.sh` previously listed `codex` as an option for true cross-vendor review; that fallback drops to `claude` only.
+
+**Tracked as:**
+
+- 5-task plan in `.harness/PLAN.md` (Codex-removal sweep) — all tasks `[x]`, plus a task-2 amendment for the true-sync `--update` semantics.
+- [v1.0.0](https://github.com/alexherrero/agentic-harness/releases/tag/v1.0.0) — release notes, [CHANGELOG.md](https://github.com/alexherrero/agentic-harness/blob/main/CHANGELOG.md)
+
+**Related pages:**
+
+- [ADR 0005 — Drop Codex support; three-adapter scope](0005-drop-codex-support)
+- [Update-Installed-Harness](Update-Installed-Harness) — v1.0.0+ sync semantics section
+- [Installer-CLI](Installer-CLI) — `--update` flag description updated
+- [Repo-Layout](Repo-Layout) — three-adapter table
 
 ## 2026-04-23 — v0.9.0: Diátaxis documentation spec + `/doctor` skill
 
