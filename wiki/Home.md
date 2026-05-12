@@ -34,6 +34,7 @@ Dogfood documentation for the harness repo itself. Every page is written for a s
 - [ADR 0002 — Documentation convention](0002-documentation-convention)
 - [ADR 0003 — ProjectsV2 ownership and linking](0003-ProjectsV2-Ownership-And-Linking)
 - [ADR 0004 — Diátaxis documentation spec](0004-diataxis-documentation-spec)
+- [ADR 0005 — Drop Codex support; three-adapter scope](0005-drop-codex-support)
 
 ## Conventions
 

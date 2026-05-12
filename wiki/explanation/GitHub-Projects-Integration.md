@@ -25,7 +25,7 @@ A user running `/plan`, `/work`, `/review`, or `/release` should be able to offl
 - **Opt-in only.** A user who doesn't care about Projects sees zero behavior change.
 - **Preview-and-ask at every write.** No `gh project item-create` ever runs without the user seeing the title + body first and typing `y`.
 - **Symmetric with `/bugfix` Issues.** Issues handle bugs with a full lifecycle; Projects handle "deferred work" as single items. The two surfaces are parallel, not overlapping.
-- **Four-adapter parity.** Claude Code, Antigravity, Codex, and Gemini each expose the same behavior.
+- **Three-adapter parity.** Claude Code, Antigravity, and Gemini each expose the same behavior.
 
 ## Design
 
@@ -79,11 +79,10 @@ Canonical block per phase (the adapter copies reference these paths rather than 
 | `/review` | [`harness/phases/04-review.md#L159-L177`](https://github.com/alexherrero/agentic-harness/blob/main/harness/phases/04-review.md#L159-L177) | §8 "Offer deferred findings to the GitHub Project" |
 | `/release` | [`harness/phases/05-release.md#L101-L121`](https://github.com/alexherrero/agentic-harness/blob/main/harness/phases/05-release.md#L101-L121) | §8 "Offer next-release themes to the GitHub Project" |
 
-Adapter parity (all four adapters carry the wiring for all five phases — 20 adapter files touched):
+Adapter parity (all three adapters carry the wiring for all five phases — 15 adapter files touched):
 
 - [`adapters/claude-code/commands/{setup,plan,work,review,release}.md`](https://github.com/alexherrero/agentic-harness/tree/main/adapters/claude-code/commands)
 - [`adapters/antigravity/workflows/{setup,plan,work,review,release}.md`](https://github.com/alexherrero/agentic-harness/tree/main/adapters/antigravity/workflows)
-- [`adapters/codex/skills/harness-{setup,plan,work,review,release}/SKILL.md`](https://github.com/alexherrero/agentic-harness/tree/main/adapters/codex/skills)
 - [`adapters/gemini/commands/{setup,plan,work,review,release}.toml`](https://github.com/alexherrero/agentic-harness/tree/main/adapters/gemini/commands)
 
 Schema update for `.harness/project.json` (added `repo` field) in [`harness/documentation.md`](https://github.com/alexherrero/agentic-harness/blob/main/harness/documentation.md).

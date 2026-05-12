@@ -6,7 +6,7 @@ What agentic-harness is, who it's for, and the shape of the problem it's trying 
 
 | Question | Answer |
 |---|---|
-| What is it? | A phase-gated workflow + state layout that any AI coding agent (Claude Code, Antigravity, Codex, Gemini CLI) can follow. |
+| What is it? | A phase-gated workflow + state layout that any AI coding agent (Claude Code, Antigravity, Gemini CLI) can follow. |
 | Who's it for? | A developer who wants agents to do production-quality engineering, not a demo. |
 | How big is it? | Six phase commands, two sub-agents, one skill (`ship-release`). Small on purpose. |
 | How does it get into a project? | One command — `install.sh /path/to/project`. See [Install-Into-Project](Install-Into-Project). |
@@ -44,7 +44,7 @@ A separate skill, [`ship-release`](https://github.com/alexherrero/agentic-harnes
 Someone who:
 
 - Pays per-token and per-minute — values minimal ceremony, doesn't want a 150-agent supermarket.
-- Wants the *same* workflow across Claude Code, Antigravity, Codex, and Gemini CLI so their muscle memory travels.
+- Wants the *same* workflow across Claude Code, Antigravity, and Gemini CLI so their muscle memory travels.
 - Thinks tests and typecheckers are the truth and LLM reviews are augmentation.
 - Is willing to invest five minutes at the end of each feature to keep the docs honest, in exchange for not having to re-derive the system later.
 

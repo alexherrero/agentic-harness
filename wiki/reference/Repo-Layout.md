@@ -7,7 +7,7 @@ Top-level layout of agentic-harness on disk. For the *why* of this shape, see [H
 | Question | Answer |
 |---|---|
 | Where does a phase spec live? | [`harness/phases/`](https://github.com/alexherrero/agentic-harness/tree/main/harness/phases) — one canonical `.md` per phase |
-| Where does an adapter live? | [`adapters/<tool>/`](https://github.com/alexherrero/agentic-harness/tree/main/adapters) — claude-code, antigravity, codex, gemini |
+| Where does an adapter live? | [`adapters/<tool>/`](https://github.com/alexherrero/agentic-harness/tree/main/adapters) — claude-code, antigravity, gemini |
 | Where does the install scaffold live? | [`templates/`](https://github.com/alexherrero/agentic-harness/tree/main/templates) — state files, hooks, wiki scaffold |
 | Where does the test infra live? | [`scripts/`](https://github.com/alexherrero/agentic-harness/tree/main/scripts) — **never propagated to target projects** |
 | Where does this wiki get copied from on install? | Nowhere. Target projects get `templates/wiki/` (empty scaffold), not this one. See [ADR 0002](0002-documentation-convention). |
@@ -36,8 +36,7 @@ agentic-harness/
 ├── adapters/                  # per-tool shims that point at harness/ specs
 │   ├── claude-code/           # .claude/commands + .claude/agents + .claude/skills
 │   ├── antigravity/           # .agent/workflows + .agent/skills + .agent/rules
-│   ├── codex/                 # .agents/skills + .codex/agents
-│   └── gemini/                # .gemini/commands + .gemini/agents + settings.json
+│   └── gemini/                # .gemini/commands + .gemini/agents + settings.json (shared .agents/skills delivered by installer)
 ├── templates/                 # what install.sh drops into a target project
 │   ├── PLAN.md, features.json, progress.md, init.sh, verify.{sh,ps1}, known-migrations.md
 │   ├── hooks/                 # hook scripts + settings-fragment JSON (bash + pwsh)
@@ -59,7 +58,7 @@ agentic-harness/
     └── wiki-sync.yml                                        # (also shipped as a template)
 ```
 
-## 🎨 The four adapters
+## 🎨 The three adapters
 
 Every adapter ships the same canonical set of phase commands, sub-agents, and skills. Their *shape* differs per tool, but the names and jobs match. [`scripts/check-parity.sh`](https://github.com/alexherrero/agentic-harness/blob/main/scripts/check-parity.sh) asserts this.
 
@@ -67,11 +66,10 @@ Every adapter ships the same canonical set of phase commands, sub-agents, and sk
 |---|---|---|---|
 | `adapters/claude-code/` | `.claude/commands/*.md` | `.claude/agents/*.md` | `.claude/skills/*/SKILL.md` |
 | `adapters/antigravity/` | `.agent/workflows/*.md` | (via skills) | `.agent/skills/*/SKILL.md` |
-| `adapters/codex/` | (skills double as phases) | `.codex/agents/*.toml` | `.agents/skills/*/SKILL.md` |
-| `adapters/gemini/` | `.gemini/commands/*.toml` | `.gemini/agents/*.md` | (reuses codex skills) |
+| `adapters/gemini/` | `.gemini/commands/*.toml` | `.gemini/agents/*.md` | reads `.agents/skills/*/SKILL.md` (delivered by `install.sh` per Agent Skills standard) |
 
-Canonical sub-agents: `explorer`, `adversarial-reviewer`, `documenter`.
-Canonical skills: `dependabot-fixer`, `ship-release`.
+Canonical sub-agents: `explorer`, `adversarial-reviewer`, `adversarial-reviewer-cross`, `documenter`.
+Canonical skills: `dependabot-fixer`, `doctor`, `migrate-to-diataxis`, `ship-release`.
 
 ## Related
 

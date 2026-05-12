@@ -17,9 +17,8 @@ Narrative of how phases, adapters, templates, scripts, and this wiki interact. F
          │  adapters/       │      │  wiki/           │
          │  claude-code/    │      │  (THIS repo's    │
          │  antigravity/    │      │   own docs only) │
-         │  codex/          │      │                  │
-         │  gemini/         │      └──────────────────┘
-         └────────┬─────────┘
+         │  gemini/         │      │                  │
+         └────────┬─────────┘      └──────────────────┘
                   │ copied-by
                   ▼
          ┌───────────────────────────────────────────┐
@@ -32,14 +31,14 @@ Narrative of how phases, adapters, templates, scripts, and this wiki interact. F
          ┌───────────────────────────────────────────┐
          │  target-project/                           │
          │    .harness/  .claude/  .agent/            │
-         │    .agents/  .codex/  .gemini/             │
+         │    .agents/  .gemini/                      │
          │    AGENTS.md  CLAUDE.md                    │
          │    wiki/  (empty scaffold from templates/) │
          │    .github/workflows/wiki-sync.yml          │
          └────────────────────────────────────────────┘
 ```
 
-**Key property:** the phase specs in `harness/` are authoritative. Every adapter file is expected to cite a `harness/<phases|agents|skills>/` path; [`scripts/check-references.py`](https://github.com/alexherrero/agentic-harness/blob/main/scripts/check-references.py) fails CI if an adapter references a spec that doesn't exist. That's what keeps the four adapters in sync — they're all pointers at the same canonical text. Adding a new adapter is a matter of writing pointers, not re-writing the workflow.
+**Key property:** the phase specs in `harness/` are authoritative. Every adapter file is expected to cite a `harness/<phases|agents|skills>/` path; [`scripts/check-references.py`](https://github.com/alexherrero/agentic-harness/blob/main/scripts/check-references.py) fails CI if an adapter references a spec that doesn't exist. That's what keeps the three adapters in sync — they're all pointers at the same canonical text. Adding a new adapter is a matter of writing pointers, not re-writing the workflow.
 
 ## 📁 The installer boundary
 
