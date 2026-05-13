@@ -87,94 +87,25 @@ else
   fi
 fi
 
-# ── helpers ─────────────────────────────────────────────────────────────────
+# ── shared install plumbing ────────────────────────────────────────────────
+#
+# Install primitives (ensure_boundary_src, cp_user, cp_managed, cp_user_walk,
+# cp_managed_dir, sync_managed_parents) live in lib/install/bash/primitives.sh
+# and are byte-identical to agent-toolkit's copy. See lib/install/CONTRACT.md
+# for the caller contract.
+#
+# Caller-set variables the lib reads:
+#   UPDATE_MODE     0|1 — managed-copy functions overwrite when 1
+#   BOUNDARY_ROOTS  array of absolute paths — ensure_boundary_src accepts
+#                   sources only from under these roots
 
-# ensure_boundary_src: the installer-boundary runtime guard. Every file copied
-# into a target project must originate from $HARNESS_ROOT/templates/ or
-# $HARNESS_ROOT/adapters/ — never from elsewhere in the harness repo (e.g.
-# this repo's own dogfooded wiki/, CI under .github/workflows/tests-*.yml,
-# or an active mirror of a template like .github/workflows/wiki-sync.yml).
-# A regression where a cp_* call reads from an out-of-boundary path would be
-# silent when the out-of-boundary file is byte-identical to its template
-# (e.g. post-wiki-sync-dogfood, .github/workflows/wiki-sync.yml equals its
-# template by design). The guard makes such mutations fail loudly.
-ensure_boundary_src() {
-  local src="$1"
-  case "$src" in
-    "$HARNESS_ROOT"/templates/*|"$HARNESS_ROOT"/adapters/*) return 0 ;;
-    *)
-      echo "Error: installer-boundary violation — cp source outside allowed roots:" >&2
-      echo "       src: $src" >&2
-      echo "       allowed: \$HARNESS_ROOT/templates/*, \$HARNESS_ROOT/adapters/*" >&2
-      exit 1
-      ;;
-  esac
-}
+BOUNDARY_ROOTS=(
+  "$HARNESS_ROOT/templates"
+  "$HARNESS_ROOT/adapters"
+)
 
-# cp_user: copy only if destination is missing. For files the user owns and edits.
-cp_user() {
-  local src="$1" dst="$2"
-  ensure_boundary_src "$src"
-  if [[ ! -e "$dst" ]]; then
-    cp "$src" "$dst"
-    echo "    created $dst"
-  else
-    echo "    kept    $dst (exists)"
-  fi
-}
-
-# cp_managed: in --update mode, always overwrite. Otherwise, skip if exists.
-# For harness-authored files the user should not edit.
-cp_managed() {
-  local src="$1" dst="$2"
-  ensure_boundary_src "$src"
-  if [[ $UPDATE_MODE -eq 1 && -e "$dst" ]]; then
-    if cmp -s "$src" "$dst"; then
-      echo "    kept    $dst (up to date)"
-    else
-      cp "$src" "$dst"
-      echo "    updated $dst"
-    fi
-  elif [[ ! -e "$dst" ]]; then
-    cp "$src" "$dst"
-    echo "    created $dst"
-  else
-    echo "    kept    $dst (exists — re-run with --update to refresh)"
-  fi
-}
-
-# cp_user_walk: walk a source directory recursively and cp_user each file.
-# Preserves any files the user has already created in the destination tree;
-# fills in missing scaffold files without clobbering. Used for wiki/ where
-# scaffold and human-authored pages coexist.
-cp_user_walk() {
-  local src_root="$1" dst_root="$2"
-  [[ -d "$src_root" ]] || return 0
-  # Portable: find prints src paths; strip prefix to get relative.
-  while IFS= read -r src_file; do
-    local rel="${src_file#"$src_root"/}"
-    local dst_file="$dst_root/$rel"
-    mkdir -p "$(dirname "$dst_file")"
-    cp_user "$src_file" "$dst_file"
-  done < <(find "$src_root" -type f)
-}
-
-# cp_managed_dir: same semantics for directory skills.
-cp_managed_dir() {
-  local src="$1" dst="$2"
-  ensure_boundary_src "$src"
-  if [[ $UPDATE_MODE -eq 1 && -e "$dst" ]]; then
-    # Overwrite directory contents. Safe because skills are harness-authored.
-    rm -rf "$dst"
-    cp -R "$src" "$dst"
-    echo "    updated $dst"
-  elif [[ ! -e "$dst" ]]; then
-    cp -R "$src" "$dst"
-    echo "    created $dst"
-  else
-    echo "    kept    $dst (exists — re-run with --update to refresh)"
-  fi
-}
+# shellcheck source=lib/install/bash/primitives.sh
+. "$HARNESS_ROOT/lib/install/bash/primitives.sh"
 
 # ── --update sync: wipe fully-managed adapter dirs before recreate ──────────
 #
@@ -213,21 +144,10 @@ EMPTY_PARENT_CANDIDATES=(
 
 if [[ $UPDATE_MODE -eq 1 ]]; then
   echo "==> sync mode: wiping fully-managed dirs before recreate from source"
-  wiped=0
-  for p in "${MANAGED_PARENTS[@]}"; do
-    if [[ -d "$p" ]]; then
-      rm -rf "$p"
-      echo "    removed $p/"
-      wiped=$((wiped + 1))
-    fi
-  done
-  for p in "${EMPTY_PARENT_CANDIDATES[@]}"; do
-    if [[ -d "$p" ]] && [[ -z "$(ls -A "$p" 2>/dev/null)" ]]; then
-      rmdir "$p"
-      echo "    removed empty $p/"
-    fi
-  done
-  echo "    wiped $wiped managed dir(s); rebuilding from source"
+  sync_managed_parents \
+    "${MANAGED_PARENTS[@]}" \
+    -- \
+    "${EMPTY_PARENT_CANDIDATES[@]}"
 fi
 
 # ── user files: per-project state (never overwrite) ─────────────────────────

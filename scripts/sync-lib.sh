@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# sync-lib.sh — keep agentic-harness and agent-toolkit's lib/install/ byte-identical.
+#
+# Treats agentic-harness as the canonical source. Copies lib/install/ verbatim
+# into ../agent-toolkit/lib/install/, regenerates .checksums.txt in both
+# repos, and leaves the changes staged for the user to commit.
+#
+# Usage:
+#   bash scripts/sync-lib.sh             # canonical → sibling
+#   bash scripts/sync-lib.sh --verify    # only check; no copy
+#
+# Exit:
+#   0  in-sync (or sync succeeded)
+#   1  drift detected (in --verify) or sync failed
+
+set -euo pipefail
+
+HARNESS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TOOLKIT_ROOT="$(cd "$HARNESS_ROOT/../agent-toolkit" 2>/dev/null && pwd || true)"
+
+MODE="sync"
+if [[ "${1:-}" == "--verify" ]]; then
+    MODE="verify"
+fi
+
+if [[ -z "$TOOLKIT_ROOT" ]]; then
+    echo "sync-lib: cannot locate ../agent-toolkit/ relative to $HARNESS_ROOT" >&2
+    echo "  Expected sibling layout: ../agent-toolkit/lib/install/" >&2
+    exit 1
+fi
+
+CANONICAL="$HARNESS_ROOT/lib/install"
+MIRROR="$TOOLKIT_ROOT/lib/install"
+
+if [[ ! -d "$CANONICAL" ]]; then
+    echo "sync-lib: canonical $CANONICAL does not exist" >&2
+    exit 1
+fi
+
+# ── compute checksums (excludes .checksums.txt itself) ────────────────────
+# Sorted output for deterministic diffs across machines.
+compute_checksums() {
+    local root="$1"
+    (cd "$root" && find . -type f -not -name '.checksums.txt' -print0 \
+        | sort -z \
+        | xargs -0 shasum -a 256 \
+        | sed 's|  \./|  |')
+}
+
+# ── sync mode: copy + regenerate ──────────────────────────────────────────
+if [[ "$MODE" == "sync" ]]; then
+    echo "==> syncing lib/install/ from agentic-harness → agent-toolkit"
+
+    # Ensure mirror dir exists; wipe its contents so deletions in canonical
+    # propagate.
+    mkdir -p "$MIRROR"
+    rm -rf "$MIRROR"/*
+    cp -R "$CANONICAL"/* "$MIRROR/"
+    echo "    copied $(find "$CANONICAL" -type f -not -name '.checksums.txt' | wc -l | tr -d ' ') files"
+
+    # Regenerate checksums in both
+    compute_checksums "$CANONICAL" > "$CANONICAL/.checksums.txt"
+    compute_checksums "$MIRROR"   > "$MIRROR/.checksums.txt"
+    echo "    regenerated .checksums.txt in both repos"
+
+    # Stage changes in agent-toolkit for user review (agentic-harness changes
+    # are already in the working tree, presumably staged by the user before
+    # running this).
+    (cd "$TOOLKIT_ROOT" && git add lib/install/)
+    echo ""
+    echo "sync-lib: complete."
+    echo "  Review staged changes in both repos and commit with parallel"
+    echo "  messages cross-referencing the other repo's commit SHA."
+    exit 0
+fi
+
+# ── verify mode: byte-compare without copying ─────────────────────────────
+if [[ "$MODE" == "verify" ]]; then
+    echo "==> verifying lib/install/ byte-identity"
+
+    if ! diff -qr "$CANONICAL" "$MIRROR" >/dev/null 2>&1; then
+        echo "sync-lib: DRIFT detected between $CANONICAL and $MIRROR" >&2
+        diff -qr "$CANONICAL" "$MIRROR" >&2 || true
+        echo "" >&2
+        echo "  Run 'bash scripts/sync-lib.sh' to re-sync." >&2
+        exit 1
+    fi
+    echo "sync-lib: in-sync (verified by diff -qr)"
+    exit 0
+fi

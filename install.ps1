@@ -79,125 +79,25 @@ if ($Update) {
     }
 }
 
-# ── helpers ─────────────────────────────────────────────────────────────────
+# ── shared install plumbing ────────────────────────────────────────────────
+#
+# Install primitives (Ensure-BoundarySrc, Copy-UserFile, Copy-ManagedFile,
+# Copy-UserWalk, Copy-ManagedDir, Copy-AdapterFiles, Copy-AdapterDirs,
+# Sync-ManagedParents) live in lib/install/pwsh/primitives.ps1 and are
+# byte-identical to agent-toolkit's copy. See lib/install/CONTRACT.md for
+# the caller contract.
+#
+# Caller-set script-scope variables the lib reads:
+#   $Update          switch — managed-copy functions overwrite when set
+#   $BoundaryRoots   string[] — Ensure-BoundarySrc accepts sources only
+#                    from under these roots
 
-# Ensure-BoundarySrc: installer-boundary runtime guard. Every file copied into
-# a target project must originate from $HarnessRoot/templates/ or
-# $HarnessRoot/adapters/ — never from elsewhere in the harness repo (e.g.
-# this repo's own wiki/, CI workflows under .github/workflows/tests-*.yml, or
-# an active mirror of a template like .github/workflows/wiki-sync.yml that's
-# byte-identical to its template by design). Makes out-of-boundary cp
-# regressions fail loudly instead of silently propagating source-repo
-# content into target projects.
-function Ensure-BoundarySrc([string]$src) {
-    $srcFull = $null
-    try { $srcFull = (Resolve-Path -LiteralPath $src -ErrorAction Stop).ProviderPath } catch { $srcFull = $src }
-    $tplFull = (Resolve-Path -LiteralPath (Join-Path $HarnessRoot 'templates')).ProviderPath
-    $adpFull = (Resolve-Path -LiteralPath (Join-Path $HarnessRoot 'adapters')).ProviderPath
-    $sep = [System.IO.Path]::DirectorySeparatorChar
-    if ($srcFull.StartsWith($tplFull + $sep) -or $srcFull.StartsWith($adpFull + $sep)) { return }
-    Write-Error "installer-boundary violation - cp source outside allowed roots:`n       src: $srcFull`n       allowed: `$HarnessRoot/templates/*, `$HarnessRoot/adapters/*"
-    exit 1
-}
+$BoundaryRoots = @(
+    (Join-Path $HarnessRoot 'templates'),
+    (Join-Path $HarnessRoot 'adapters')
+)
 
-# Copy-UserFile: copy only if destination is missing. For files the user owns.
-function Copy-UserFile([string]$src, [string]$dst) {
-    Ensure-BoundarySrc $src
-    if (-not (Test-Path -LiteralPath $dst)) {
-        $parent = Split-Path -Parent $dst
-        if ($parent -and -not (Test-Path -LiteralPath $parent)) {
-            New-Item -ItemType Directory -Path $parent -Force | Out-Null
-        }
-        Copy-Item -LiteralPath $src -Destination $dst
-        Write-Host "    created $dst"
-    } else {
-        Write-Host "    kept    $dst (exists)"
-    }
-}
-
-# Copy-ManagedFile: in -Update mode, always overwrite. Otherwise, skip if exists.
-function Copy-ManagedFile([string]$src, [string]$dst) {
-    Ensure-BoundarySrc $src
-    $parent = Split-Path -Parent $dst
-    if ($parent -and -not (Test-Path -LiteralPath $parent)) {
-        New-Item -ItemType Directory -Path $parent -Force | Out-Null
-    }
-    if ($Update -and (Test-Path -LiteralPath $dst)) {
-        $same = $false
-        try {
-            $a = Get-FileHash -LiteralPath $src -Algorithm SHA256
-            $b = Get-FileHash -LiteralPath $dst -Algorithm SHA256
-            $same = ($a.Hash -eq $b.Hash)
-        } catch { }
-        if ($same) {
-            Write-Host "    kept    $dst (up to date)"
-        } else {
-            Copy-Item -LiteralPath $src -Destination $dst -Force
-            Write-Host "    updated $dst"
-        }
-    } elseif (-not (Test-Path -LiteralPath $dst)) {
-        Copy-Item -LiteralPath $src -Destination $dst
-        Write-Host "    created $dst"
-    } else {
-        Write-Host "    kept    $dst (exists — re-run with -Update to refresh)"
-    }
-}
-
-# Copy-UserWalk: walk a source directory recursively and Copy-UserFile each.
-# Preserves files the user has already created in the destination tree.
-function Copy-UserWalk([string]$srcRoot, [string]$dstRoot) {
-    if (-not (Test-Path -LiteralPath $srcRoot)) { return }
-    $srcFull = (Resolve-Path -LiteralPath $srcRoot).ProviderPath
-    Get-ChildItem -LiteralPath $srcFull -Recurse -File -Force | ForEach-Object {
-        $rel = $_.FullName.Substring($srcFull.Length).TrimStart('\', '/')
-        $dstFile = Join-Path $dstRoot $rel
-        $parent = Split-Path -Parent $dstFile
-        if ($parent -and -not (Test-Path -LiteralPath $parent)) {
-            New-Item -ItemType Directory -Path $parent -Force | Out-Null
-        }
-        Copy-UserFile $_.FullName $dstFile
-    }
-}
-
-# Copy-ManagedDir: same -Update semantics for whole directories (e.g. skills).
-function Copy-ManagedDir([string]$src, [string]$dst) {
-    Ensure-BoundarySrc $src
-    if ($Update -and (Test-Path -LiteralPath $dst)) {
-        Remove-Item -LiteralPath $dst -Recurse -Force
-        Copy-Item -LiteralPath $src -Destination $dst -Recurse
-        Write-Host "    updated $dst"
-    } elseif (-not (Test-Path -LiteralPath $dst)) {
-        $parent = Split-Path -Parent $dst
-        if ($parent -and -not (Test-Path -LiteralPath $parent)) {
-            New-Item -ItemType Directory -Path $parent -Force | Out-Null
-        }
-        Copy-Item -LiteralPath $src -Destination $dst -Recurse
-        Write-Host "    created $dst"
-    } else {
-        Write-Host "    kept    $dst (exists — re-run with -Update to refresh)"
-    }
-}
-
-# Copy-Adapter: iterate files matching a glob and Copy-ManagedFile into dstDir.
-function Copy-AdapterFiles([string]$srcDir, [string]$glob, [string]$dstDir) {
-    if (-not (Test-Path -LiteralPath $srcDir)) { return }
-    if (-not (Test-Path -LiteralPath $dstDir)) {
-        New-Item -ItemType Directory -Path $dstDir -Force | Out-Null
-    }
-    Get-ChildItem -LiteralPath $srcDir -Filter $glob -File -ErrorAction SilentlyContinue | ForEach-Object {
-        Copy-ManagedFile $_.FullName (Join-Path $dstDir $_.Name)
-    }
-}
-
-function Copy-AdapterDirs([string]$srcDir, [string]$dstDir) {
-    if (-not (Test-Path -LiteralPath $srcDir)) { return }
-    if (-not (Test-Path -LiteralPath $dstDir)) {
-        New-Item -ItemType Directory -Path $dstDir -Force | Out-Null
-    }
-    Get-ChildItem -LiteralPath $srcDir -Directory | ForEach-Object {
-        Copy-ManagedDir $_.FullName (Join-Path $dstDir $_.Name)
-    }
-}
+. (Join-Path $HarnessRoot 'lib/install/pwsh/primitives.ps1')
 
 # ── -Update sync: wipe fully-managed adapter dirs before recreate ───────────
 #
@@ -222,23 +122,7 @@ $EmptyParentCandidates = @('.codex', '.agents')
 
 if ($Update) {
     Write-Host '==> sync mode: wiping fully-managed dirs before recreate from source'
-    $wiped = 0
-    foreach ($p in $ManagedParents) {
-        if (Test-Path -LiteralPath $p -PathType Container) {
-            Remove-Item -LiteralPath $p -Recurse -Force
-            Write-Host "    removed $p/"
-            $wiped++
-        }
-    }
-    foreach ($p in $EmptyParentCandidates) {
-        if (Test-Path -LiteralPath $p -PathType Container) {
-            if (-not (Get-ChildItem -LiteralPath $p -Force -ErrorAction SilentlyContinue)) {
-                Remove-Item -LiteralPath $p -Force
-                Write-Host "    removed empty $p/"
-            }
-        }
-    }
-    Write-Host "    wiped $wiped managed dir(s); rebuilding from source"
+    Sync-ManagedParents $ManagedParents $EmptyParentCandidates
 }
 
 # ── user files: per-project state (never overwrite) ─────────────────────────
