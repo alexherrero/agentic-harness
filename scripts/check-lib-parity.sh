@@ -31,14 +31,25 @@ if [[ ! -f "$CHECKSUMS" ]]; then
     exit 2
 fi
 
+# SHA-256 tool: prefer sha256sum (Linux/coreutils, Git Bash on Windows),
+# fall back to shasum -a 256 (macOS/BSD).
+if command -v sha256sum >/dev/null 2>&1; then
+    SHA_CMD="sha256sum"
+elif command -v shasum >/dev/null 2>&1; then
+    SHA_CMD="shasum -a 256"
+else
+    echo "check-lib-parity: no SHA-256 tool found (need sha256sum or shasum)" >&2
+    exit 2
+fi
+
 # Recompute, comparing each line against the committed file.
-# LC_ALL=C forces byte-order sort (case-sensitive) for deterministic line
-# order across platforms — macOS's default locale uses case-insensitive
-# collation, producing different ordering than CI Linux (which defaults to
-# C locale). Same fix in sync-lib.sh.
+# LC_ALL=C forces byte-order sort for deterministic line order across
+# platforms — macOS's default locale uses case-insensitive collation,
+# producing different ordering than CI Linux (C locale). Same fix in
+# sync-lib.sh.
 RECOMPUTED=$(cd "$LIB_DIR" && find . -type f -not -name '.checksums.txt' -print0 \
     | LC_ALL=C sort -z \
-    | xargs -0 shasum -a 256 \
+    | xargs -0 $SHA_CMD \
     | sed 's|  \./|  |')
 
 COMMITTED=$(cat "$CHECKSUMS")

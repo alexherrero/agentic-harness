@@ -43,11 +43,24 @@ fi
 # default locale uses case-insensitive collation, producing different line
 # order than Linux (which often defaults to C locale in CI). Same fix in
 # check-lib-parity.sh.
+#
+# SHA-256 tool: `shasum -a 256` on macOS/BSD; `sha256sum` on Linux/coreutils
+# (and Git Bash on Windows, which doesn't ship shasum). Detect and use
+# whichever is present.
+if command -v sha256sum >/dev/null 2>&1; then
+    _SHA_CMD="sha256sum"
+elif command -v shasum >/dev/null 2>&1; then
+    _SHA_CMD="shasum -a 256"
+else
+    echo "sync-lib: no SHA-256 tool found (need sha256sum or shasum)" >&2
+    exit 2
+fi
+
 compute_checksums() {
     local root="$1"
     (cd "$root" && find . -type f -not -name '.checksums.txt' -print0 \
         | LC_ALL=C sort -z \
-        | xargs -0 shasum -a 256 \
+        | xargs -0 $_SHA_CMD \
         | sed 's|  \./|  |')
 }
 
