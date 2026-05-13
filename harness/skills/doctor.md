@@ -34,7 +34,7 @@ For each detected adapter, verify the expected name set is present and each file
 
 - **Phase commands**: `bugfix, plan, release, review, setup, work`.
 - **Sub-agents**: `adversarial-reviewer, adversarial-reviewer-cross, documenter, explorer`.
-- **Skills**: `dependabot-fixer, doctor, migrate-to-diataxis, ship-release`.
+- **Skills**: `doctor, migrate-to-diataxis` (harness-shipped; `dependabot-fixer` and `ship-release` migrated to `agent-toolkit` in v2.0.0 per ADR 0006).
 
 For each expected item:
 1. The file exists at the adapter-specific path.
@@ -77,7 +77,9 @@ Dispatch with a deliberately-buggy snippet inline in the prompt:
 
 ### Probe 3: `ship-release --dry-run`
 
-Invoke `ship-release --dry-run`. This should compute a proposed version and notes **without** tagging or pushing.
+**Graceful-skip if not installed.** `ship-release` migrated to `agent-toolkit` in v2.0.0. If the skill isn't present in any host's skill paths (check `.claude/skills/ship-release/`, `.agent/skills/ship-release/`, `.agents/skills/ship-release/`), report **skip** with reason: *"ship-release skill not found — install agent-toolkit to enable this probe."*
+
+If installed: invoke `ship-release --dry-run`. This should compute a proposed version and notes **without** tagging or pushing.
 
 **Pass criteria:** skill prints a proposed `vX.Y.Z`, classifies the commit range, and exits cleanly without side effects. `git tag --list` is unchanged. `git status` still clean.
 **Fail signals:** skill actually creates a tag (guardrail broken), skill crashes on the preconditions check, `gh auth status` failure surfaces without being caught.
@@ -91,7 +93,9 @@ Invoke `migrate-to-diataxis` in preview mode against the current `wiki/`. If `wi
 
 ### Probe 5: `dependabot-fixer` "nothing matched" path
 
-Invoke `dependabot-fixer` with no matching Dependabot PRs open. The skill should exit cleanly with "no matching PRs found", not crash or try to fix a non-existent PR.
+**Graceful-skip if not installed.** `dependabot-fixer` migrated to `agent-toolkit` in v2.0.0. Report **skip** with reason if the skill isn't found.
+
+If installed: invoke `dependabot-fixer` with no matching Dependabot PRs open. The skill should exit cleanly with "no matching PRs found", not crash or try to fix a non-existent PR.
 
 **Pass criteria:** one-line "nothing to fix" output, exit 0.
 **Fail signals:** the skill tries to check out a PR branch, or fails on `gh pr list` parsing.

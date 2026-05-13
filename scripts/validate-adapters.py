@@ -137,7 +137,8 @@ def check_json(rel: str, required_keys: list[str] | None = None) -> dict:
 # ── canonical spec backing check ────────────────────────────────────────────
 # Every adapter phase-command must map to a canonical spec at
 # harness/phases/NN-<name>.md or harness/pipelines/<name>.md. Sub-agents
-# must map to harness/agents/<name>.md. Skills outside dependabot-fixer
+# must map to harness/agents/<name>.md. Each remaining skill (doctor,
+# migrate-to-diataxis)
 # must map to harness/skills/<name>.md.
 PHASE_COMMANDS = {"bugfix", "plan", "release", "review", "setup", "work"}
 SUBAGENTS = {
@@ -146,7 +147,7 @@ SUBAGENTS = {
     "documenter",
     "explorer",
 }
-SKILLS = {"dependabot-fixer", "ship-release"}
+SKILLS = {"doctor", "migrate-to-diataxis"}
 
 
 def canonical_phase_exists(name: str) -> bool:

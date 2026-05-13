@@ -154,7 +154,7 @@ Copy-AdapterDirs  (Join-Path $HarnessRoot 'adapters/antigravity/skills')        
 # enforces identical content; cleanest source — antigravity/skills/
 # mixes sub-agents-as-skills with shared skills).
 New-Item -ItemType Directory -Path '.agents/skills' -Force | Out-Null
-foreach ($name in @('dependabot-fixer', 'doctor', 'migrate-to-diataxis', 'ship-release')) {
+foreach ($name in @('doctor', 'migrate-to-diataxis')) {
     $src = Join-Path $HarnessRoot "adapters/claude-code/skills/$name"
     if (Test-Path -LiteralPath $src -PathType Container) {
         Copy-ManagedDir $src (Join-Path '.agents/skills' $name)

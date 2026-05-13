@@ -81,7 +81,7 @@ NAME_FROM_COMMAND_FILE_RE = re.compile(
 )
 
 # Shared skills that live under skills/ but map to harness/skills/<name>.md
-SHARED_SKILLS = {"dependabot-fixer", "doctor", "migrate-to-diataxis", "ship-release"}
+SHARED_SKILLS = {"doctor", "migrate-to-diataxis"}
 
 # Antigravity puts sub-agents under skills/ (no separate sub-agent primitive).
 # These skill names map to harness/agents/<name>.md, not harness/skills/<name>.md.
@@ -107,7 +107,7 @@ def expected_canonical_for(adapter_file: Path) -> str | None:
         # Antigravity sub-agents-as-skills
         if "antigravity" in rel and skill_name in ANTIGRAVITY_AGENT_LIKE_SKILLS:
             return f"harness/agents/{skill_name}.md"
-        # Shared skills (dependabot-fixer, doctor, migrate-to-diataxis, ship-release)
+        # Shared skills (doctor, migrate-to-diataxis)
         if skill_name in SHARED_SKILLS:
             return f"harness/skills/{skill_name}.md"
         return None
@@ -197,6 +197,11 @@ INVOKE_SKILL_RE = re.compile(
     r"`([A-Za-z0-9_-]+)`\s+skill", re.IGNORECASE
 )
 
+# Skills that migrated out of the harness — referenced in phase specs as
+# graceful-skip suggestions, not harness-shipped. Don't assert they exist
+# under harness/skills/.
+EXTERNAL_SKILLS = {"dependabot-fixer", "ship-release"}
+
 
 def check_phase_spec_dispatches() -> None:
     for spec in sorted((ROOT / "harness/phases").glob("*.md")):
@@ -211,6 +216,10 @@ def check_phase_spec_dispatches() -> None:
                 )
         for m in INVOKE_SKILL_RE.finditer(text):
             name = m.group(1)
+            if name in EXTERNAL_SKILLS:
+                # Migrated to agent-toolkit; phase spec references it as a
+                # graceful-skip suggestion. Don't assert it's harness-shipped.
+                continue
             skill_spec = ROOT / f"harness/skills/{name}.md"
             if not skill_spec.is_file():
                 err(

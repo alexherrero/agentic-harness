@@ -90,13 +90,15 @@ These actions are high blast-radius and explicitly require human confirmation. I
 > "Ready to release. Next steps (your call):
 > - `git push` — to push the release-prep commit
 > - `gh pr merge` — to merge the PR
-> - Invoke the `ship-release` skill — to auto-size the semver bump, write CHANGELOG.md, tag, push, and create the GitHub release in one flow
+> - Invoke the `ship-release` skill (from agent-toolkit) — to auto-size the semver bump, write CHANGELOG.md, tag, push, and create the GitHub release in one flow
 >
 > I'm stopping here. Say the word if you want me to run any of the above."
 
 Wait for explicit confirmation on each action. "Looks good" is not confirmation; "push and merge" is.
 
 Once the user confirms the merge (or push to default branch) is done, the `ship-release` skill is the recommended follow-up — it handles the tag + GitHub release cut with conventional-commit-driven version sizing. `/release` and `ship-release` are sequential: `/release` is the pre-merge gate, `ship-release` is the post-merge tag cut.
+
+**`ship-release` location (post-v2.0.0):** the skill migrated from `agentic-harness` to `agent-toolkit` in `v2.0.0` (see ADR 0006). If `agent-toolkit` is installed alongside (sibling repo at `../agent-toolkit/` per the standard layout), the skill is available at the host's standard skill paths and can be invoked normally. If `agent-toolkit` is **not** installed, gracefully skip the auto-suggestion and tell the user: *"`ship-release` lives in `agent-toolkit` (sibling repo) since v2.0.0. Install it via `bash ../agent-toolkit/install.sh <project>` to enable the auto-suggestion, or cut the release manually with `gh release create`."* This is the same graceful-skip pattern as the GitHub Projects integration — never error on a missing optional tool.
 
 ### 8. Offer next-release themes to the GitHub Project (optional)
 

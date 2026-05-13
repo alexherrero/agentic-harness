@@ -6,15 +6,17 @@
 #   phase-commands: bugfix, plan, release, review, setup, work
 #   sub-agents:     adversarial-reviewer, adversarial-reviewer-cross,
 #                   documenter, explorer
-#   skills:         dependabot-fixer, doctor, migrate-to-diataxis, ship-release
+#   skills:         doctor, migrate-to-diataxis
+#                   (dependabot-fixer + ship-release migrated to agent-toolkit
+#                    in v2.0.0 — see ADR 0006)
 #
 # Deliberate divergences (documented, not failures):
 #   - antigravity puts sub-agents under skills/ (Antigravity has no
 #     separate sub-agent primitive).
-#   - gemini has no skills/ dir; shared skills (dependabot-fixer,
-#     doctor, migrate-to-diataxis, ship-release) are delivered to
-#     `.agents/skills/` by install.sh and Gemini reads that path
-#     natively per the Agent Skills standard.
+#   - gemini has no skills/ dir; shared skills (doctor,
+#     migrate-to-diataxis) are delivered to `.agents/skills/` by
+#     install.sh and Gemini reads that path natively per the Agent
+#     Skills standard.
 #
 # Each failure mode below documents how to reproduce by hand.
 #
@@ -27,7 +29,7 @@ cd "$HARNESS_ROOT"
 
 CANON_COMMANDS=(bugfix plan release review setup work)
 CANON_AGENTS=(adversarial-reviewer adversarial-reviewer-cross documenter explorer)
-CANON_SKILLS=(dependabot-fixer doctor migrate-to-diataxis ship-release)
+CANON_SKILLS=(doctor migrate-to-diataxis)
 
 fail=0
 
@@ -78,8 +80,8 @@ assert_set "antigravity/rules"              adapters/antigravity/rules       md 
 
 echo "== gemini =="
 # Gemini has native slash commands + markdown sub-agents. No skills/ dir:
-# shared skills (dependabot-fixer, doctor, migrate-to-diataxis,
-# ship-release) are delivered to `.agents/skills/` by install.sh and
+# shared skills (doctor, migrate-to-diataxis) are delivered to
+# `.agents/skills/` by install.sh and
 # Gemini reads that path natively per the Agent Skills standard.
 assert_set "gemini/commands"                adapters/gemini/commands         toml "${CANON_COMMANDS[@]}"
 assert_set "gemini/agents"                  adapters/gemini/agents           md   "${CANON_AGENTS[@]}"

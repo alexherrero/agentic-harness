@@ -135,7 +135,7 @@ Preview-and-ask is non-negotiable per [`documentation.md §GitHub Projects + Iss
 
 **Do not start the next task.** The next task gets its own session: either `/work` again (clean context) or `/review` first if the task warranted it.
 
-If this task flipped a `features.json` entry's `passes` flag from `false` to `true` during `/review`, or the task finished the last feature in the plan, **suggest the `ship-release` skill** as the next step — do not auto-invoke it, the user may have more features queued. Phrase it: *"Feature `<id>` is now passing end-to-end. Consider invoking the `ship-release` skill to cut a tagged release."*
+If this task flipped a `features.json` entry's `passes` flag from `false` to `true` during `/review`, or the task finished the last feature in the plan, **suggest the `ship-release` skill** as the next step — do not auto-invoke it, the user may have more features queued. Phrase it: *"Feature `<id>` is now passing end-to-end. Consider invoking the `ship-release` skill (from agent-toolkit) to cut a tagged release."* If `agent-toolkit` isn't installed alongside, graceful-skip the suggestion — `ship-release` migrated to `agent-toolkit` in v2.0.0 (see ADR 0006).
 
 Return to the user with a ≤5-bullet summary:
 - Task completed: task N, title

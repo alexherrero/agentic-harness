@@ -211,7 +211,7 @@ done
 # source — antigravity/skills/ mixes sub-agents-as-skills with shared
 # skills, so iterating that dir would over-deliver.
 mkdir -p .agents/skills
-for name in dependabot-fixer doctor migrate-to-diataxis ship-release; do
+for name in doctor migrate-to-diataxis; do
   src="$HARNESS_ROOT/adapters/claude-code/skills/$name"
   [[ -d "$src" ]] || continue
   cp_managed_dir "$src" ".agents/skills/$name"

@@ -103,13 +103,13 @@ $requiredNonEmpty = @(
     '.claude/commands/release.md',
     '.claude/agents/explorer.md',
     '.claude/agents/documenter.md',
-    '.claude/skills/dependabot-fixer/SKILL.md',
-    '.claude/skills/ship-release/SKILL.md',
+    '.claude/skills/doctor/SKILL.md',
+    '.claude/skills/migrate-to-diataxis/SKILL.md',
     '.agent/workflows/plan.md',
     '.agent/skills/documenter/SKILL.md',
-    '.agent/skills/ship-release/SKILL.md',
-    '.agents/skills/ship-release/SKILL.md',
-    '.agents/skills/dependabot-fixer/SKILL.md',
+    '.agent/skills/migrate-to-diataxis/SKILL.md',
+    '.agents/skills/doctor/SKILL.md',
+    '.agents/skills/migrate-to-diataxis/SKILL.md',
     '.gemini/commands/plan.toml',
     '.gemini/agents/explorer.md'
 )
