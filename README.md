@@ -79,14 +79,19 @@ flowchart LR
 
 ## Skills
 
-Background utilities that auto-trigger, separate from the phase commands.
+Background utilities that auto-trigger, separate from the phase commands. Two harness-shipped skills as of v2.0.0; personal customizations (more skills, sub-agents, hooks, MCP servers, bundles, etc.) live in the sibling [`agent-toolkit`](https://github.com/alexherrero/agent-toolkit) repo (see [ADR 0006](wiki/explanation/decisions/0006-agent-toolkit-split.md)).
 
 | Skill | Triggers when |
 |---|---|
-| `dependabot-fixer` | Dependabot PR has red CI. Applies a bounded fix loop; never merges. ([spec](harness/skills/dependabot-fixer.md)) |
-| `ship-release` | A feature just went green end-to-end. Computes semver, writes notes, tags, creates the GitHub release. ([spec](harness/skills/ship-release.md)) |
 | `migrate-to-diataxis` | One-shot migration of an already-installed project's `wiki/` to the Diátaxis four-mode layout. Preview-first, `git mv` for blame, non-destructive. ([spec](harness/skills/migrate-to-diataxis.md)) |
 | `doctor` | User-invoked (`/doctor`). Verifies the install is correctly wired up in this host — structural by default, `--live` adds real sub-agent dispatches and skill dry-runs. ([spec](harness/skills/doctor.md)) |
+
+Skills that lived here through v1.x and migrated to `agent-toolkit` in v2.0.0:
+
+| Skill | Now lives in |
+|---|---|
+| `dependabot-fixer` | [`agent-toolkit/skills/dependabot-fixer/`](https://github.com/alexherrero/agent-toolkit/tree/main/skills/dependabot-fixer) |
+| `ship-release` | [`agent-toolkit/skills/ship-release/`](https://github.com/alexherrero/agent-toolkit/tree/main/skills/ship-release) |
 
 ## Telemetry
 

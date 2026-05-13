@@ -11,6 +11,8 @@ Top-level layout of agentic-harness on disk. For the *why* of this shape, see [H
 | Where does the install scaffold live? | [`templates/`](https://github.com/alexherrero/agentic-harness/tree/main/templates) — state files, hooks, wiki scaffold |
 | Where does the test infra live? | [`scripts/`](https://github.com/alexherrero/agentic-harness/tree/main/scripts) — **never propagated to target projects** |
 | Where does this wiki get copied from on install? | Nowhere. Target projects get `templates/wiki/` (empty scaffold), not this one. See [ADR 0002](0002-documentation-convention). |
+| Where do personal customizations live? | [`agent-toolkit`](https://github.com/alexherrero/agent-toolkit) — sibling repo (since v2.0.0 / ADR 0006). Skills, sub-agents, hooks, MCP servers, slash commands, bundles, etc. |
+| Where does the shared install plumbing live? | [`lib/install/`](https://github.com/alexherrero/agentic-harness/tree/main/lib/install) — byte-identical to `agent-toolkit/lib/install/`. Sync via `scripts/sync-lib.sh`; CI gates parity. |
 
 ## 📁 Top-level layout
 
@@ -26,7 +28,7 @@ agentic-harness/
 ├── harness/                   # canonical specs (source of truth)
 │   ├── phases/                # 01-setup .. 05-release + bugfix pipeline
 │   ├── agents/                # canonical sub-agent specs (explorer, adversarial-reviewer, documenter)
-│   ├── skills/                # canonical skill specs (dependabot-fixer, ship-release)
+│   ├── skills/                # canonical skill specs (doctor, migrate-to-diataxis) — see ADR 0006
 │   ├── pipelines/             # bugfix pipeline spec
 │   ├── principles.md          # design calls behind the harness
 │   ├── documentation.md       # wiki convention
@@ -37,6 +39,8 @@ agentic-harness/
 │   ├── claude-code/           # .claude/commands + .claude/agents + .claude/skills
 │   ├── antigravity/           # .agent/workflows + .agent/skills + .agent/rules
 │   └── gemini/                # .gemini/commands + .gemini/agents + settings.json (shared .agents/skills delivered by installer)
+├── lib/                       # shared install plumbing (byte-identical to agent-toolkit/lib/) — see ADR 0006
+│   └── install/               # cp_managed, cp_user, ensure_boundary_src, sync_managed_parents (bash + pwsh)
 ├── templates/                 # what install.sh drops into a target project
 │   ├── PLAN.md, features.json, progress.md, init.sh, verify.{sh,ps1}, known-migrations.md
 │   ├── hooks/                 # hook scripts + settings-fragment JSON (bash + pwsh)
@@ -49,6 +53,9 @@ agentic-harness/
 │   ├── check-syntax.{sh,ps1}
 │   ├── check-references.py
 │   ├── check-wiki.py
+│   ├── check-lib-parity.sh    # byte-identity gate for lib/install/
+│   ├── check-no-pii.sh        # PII regex scanner (also gated in CI via gitleaks-action)
+│   ├── sync-lib.sh            # one-shot lib/install/ sync agentic-harness → ../agent-toolkit
 │   └── validate-adapters.py
 ├── wiki/                      # THIS wiki — dogfood docs for the harness repo itself
 │   ├── Home.md, _Sidebar.md, .diataxis

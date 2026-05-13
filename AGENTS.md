@@ -58,6 +58,10 @@ your-project/
 - **Claude Code:** `/plan <brief>`, `/work`, `/review`, `/release`, `/bugfix <report>`.
 - **Antigravity / tools without slash commands:** prompt the agent with "Run the plan phase per AGENTS.md" (or work / review / etc.). The agent should read [`harness/phases/`](harness/phases/) and follow the spec.
 
+## Personal customizations
+
+Skills, sub-agents, hooks, MCP servers, slash commands, bundles, etc. live in the sibling [`agent-toolkit`](https://github.com/alexherrero/agent-toolkit) repo (since v2.0.0 / [ADR 0006](wiki/explanation/decisions/0006-agent-toolkit-split.md)). Install both repos as siblings (e.g. `~/Antigravity/agentic-harness/`, `~/Antigravity/agent-toolkit/`) to get the full set. The harness's `/release` and `/work` phases reference `ship-release` (from agent-toolkit) as a graceful-skip suggestion — present in toolkit, suggested by harness, neither requires the other to exist.
+
 ## Core principles (why the harness looks like this)
 
 See [harness/principles.md](harness/principles.md) for the full reasoning. Short version:
