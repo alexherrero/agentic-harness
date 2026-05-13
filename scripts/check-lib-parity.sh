@@ -31,9 +31,13 @@ if [[ ! -f "$CHECKSUMS" ]]; then
     exit 2
 fi
 
-# Recompute, comparing each line against the committed file
+# Recompute, comparing each line against the committed file.
+# LC_ALL=C forces byte-order sort (case-sensitive) for deterministic line
+# order across platforms — macOS's default locale uses case-insensitive
+# collation, producing different ordering than CI Linux (which defaults to
+# C locale). Same fix in sync-lib.sh.
 RECOMPUTED=$(cd "$LIB_DIR" && find . -type f -not -name '.checksums.txt' -print0 \
-    | sort -z \
+    | LC_ALL=C sort -z \
     | xargs -0 shasum -a 256 \
     | sed 's|  \./|  |')
 

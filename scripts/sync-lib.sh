@@ -39,10 +39,14 @@ fi
 
 # ── compute checksums (excludes .checksums.txt itself) ────────────────────
 # Sorted output for deterministic diffs across machines.
+# LC_ALL=C forces byte-order sort (case-sensitive); without it, macOS Mac's
+# default locale uses case-insensitive collation, producing different line
+# order than Linux (which often defaults to C locale in CI). Same fix in
+# check-lib-parity.sh.
 compute_checksums() {
     local root="$1"
     (cd "$root" && find . -type f -not -name '.checksums.txt' -print0 \
-        | sort -z \
+        | LC_ALL=C sort -z \
         | xargs -0 shasum -a 256 \
         | sed 's|  \./|  |')
 }
