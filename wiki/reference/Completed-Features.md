@@ -8,11 +8,56 @@ This page is **narrative**, not a changelog — the authoritative version log is
 
 | Date | Plan / release | Features flipped | Notes |
 |---|---|---|---|
+| 2026-05-14 | [v2.2.0](https://github.com/alexherrero/agentic-harness/releases/tag/v2.2.0) — `/work` + `/release` augmentable with agent-toolkit's base hooks | Additive: `/work` + `/release` phase specs gain optional sections documenting kill-switch + steer + commit-on-stop dispatch from agent-toolkit (operator-precision hooks for long-running sessions); `check-references.py` `EXTERNAL_CUSTOMIZATIONS` extended with 3 new hook names | 1 commit (`v2.1.0..v2.2.0`); paired with [agent-toolkit v0.7.0](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.7.0) which ships the three hook customizations + first-class `kind: hook` installer support; no new harness ADR (the design decision lives in [agent-toolkit ADR 0003](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/decisions/0003-base-operator-hooks.md)); harness still functions standalone — both sections graceful-skip when toolkit absent |
 | 2026-05-13 | [v2.1.0](https://github.com/alexherrero/agentic-harness/releases/tag/v2.1.0) — `/review` augmentable with agent-toolkit's `evaluator` | Additive: `/review` phase spec gains §3b documenting evaluator dispatch alongside `adversarial-reviewer` (complementary, not competing); `check-references.py` `EXTERNAL_SKILLS` → `EXTERNAL_CUSTOMIZATIONS` rename to cover cross-repo agent references | 1 commit (`v2.0.0..v2.1.0`); paired with [agent-toolkit v0.6.0](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.6.0) which ships the evaluator; no new harness ADR (the decision lives in [agent-toolkit ADR 0002](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/decisions/0002-evaluator-design.md)); harness still functions standalone — §3b graceful-skips when toolkit absent |
 | 2026-05-12 | [v2.0.0](https://github.com/alexherrero/agentic-harness/releases/tag/v2.0.0) — `agent-toolkit` repo split: `dependabot-fixer` + `ship-release` moved out | **BREAKING**: two skills migrated to [`agent-toolkit`](https://github.com/alexherrero/agent-toolkit); new shared `lib/install/` byte-identical across repos; PII + lib-parity CI gates added | 9 commits (`v1.0.0..v2.0.0`); new [ADR 0006](0006-agent-toolkit-split); paired with [agent-toolkit v0.5.0](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.5.0); harness shared-skills narrow 4→2; cross-platform byte-identity work surfaced + fixed four real Mac/Windows bugs |
 | 2026-05-11 | [v1.0.0](https://github.com/alexherrero/agentic-harness/releases/tag/v1.0.0) — Three-adapter scope; Codex dropped; 1.0.0 commitment | **BREAKING**: Codex adapter removed; true-sync `--update` semantics; firm-semver 1.0.0 floor | 13 commits (`v0.9.0..v1.0.0`); new [ADR 0005](0005-drop-codex-support); ~1300 lines net removed; first major version; parity invariant simplified to three adapters |
 | 2026-04-23 | [v0.9.0](https://github.com/alexherrero/agentic-harness/releases/tag/v0.9.0) — Diátaxis documentation spec + `/doctor` skill | Diátaxis rollout (ADR 0004, 7-task plan); `migrate-to-diataxis` skill; mode-aware `documenter` writes; `/doctor` skill for post-install verification | 10 commits (`v0.8.7..v0.9.0`); new [ADR 0004](0004-diataxis-documentation-spec); two new shared skills; `scripts/check-wiki.py` shipped + flipped to `--strict`; wiki dogfood reshaped with `git mv` for blame |
 | 2026-04-21 | [v0.8.7](https://github.com/alexherrero/agentic-harness/releases/tag/v0.8.7) — GitHub Projects wiring + documenter end-to-end dogfood | `feat-gh-projects-integration` (pending — gated on offer-cycle observation); `feat-documenter-subagent` (this sweep is the dogfood) | 4 commits (`801dbd7..HEAD`), 23 files; new [ADR 0003](0003-ProjectsV2-Ownership-And-Linking), new [Feature page](GitHub-Projects-Integration) |
+
+## 2026-05-14 — v2.2.0: `/work` + `/release` augmentable with agent-toolkit's base hooks
+
+**Commit range:** `v2.1.0..v2.2.0` (1 commit on `main`). Release notes: [v2.2.0](https://github.com/alexherrero/agentic-harness/releases/tag/v2.2.0). Paired with [agent-toolkit v0.7.0](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.7.0).
+
+**What shipped:**
+
+- **New section in `/work` phase spec** (`harness/phases/03-work.md`): "Long-running `/work` — operator-control hooks (agent-toolkit)". 20-line section between "When to invoke /review" and "Failure modes to avoid". Reference table for all three hooks ([kill-switch](https://github.com/alexherrero/agent-toolkit/blob/main/hooks/kill-switch/hook.md) / [steer](https://github.com/alexherrero/agent-toolkit/blob/main/hooks/steer/hook.md) / [commit-on-stop](https://github.com/alexherrero/agent-toolkit/blob/main/hooks/commit-on-stop/hook.md)); when-they-earn-their-keep framing (runaway loop / mid-task redirect / crashed session); alphabetical-ordering invariant (kill-switch fires before steer in PreToolUse); graceful-skip framing.
+- **New section in `/release` phase spec** (`harness/phases/05-release.md`): "Optional: `commit-on-stop` safety net (agent-toolkit)". Shorter 4-line section focused on commit-on-stop as the backstop for interrupted release flows (mid-CHANGELOG-edit, mid-tag-prep); cross-refs the `/work` section for the full hook lineup.
+- **`scripts/check-references.py` `EXTERNAL_CUSTOMIZATIONS` extended** with `kill-switch`, `steer`, `commit-on-stop`. Inline-commented as forward-compatibility documentation — the existing regexes don't currently match hook phrasings.
+- **No adapter edits.** All six `/work` + `/release` wrappers (3 hosts × 2 phases) reference the canonical specs at `harness/phases/0{3,5}-*.md` exactly once; the new sections inherit via the existing canonical-reference pattern.
+
+**Why it shipped this shape:**
+
+The three base hooks lifted from cwc-long-running-agents give the operator precision that didn't exist before:
+
+- **Runaway loop**: today, the only way to halt is closing the session. `touch .harness/STOP` is precise — the next `PreToolUse` blocks the tool call without ending the session.
+- **Mid-run redirect**: today, the only way to redirect is interrupt-and-restart. Writing `.harness/STEER.md` injects the redirect into the next tool call's context; file is renamed to `.harness/STEER.consumed-<ts>.md` for audit trail.
+- **Crash recovery**: today, a crashed session loses uncommitted work. `commit-on-stop` fires on Claude Code's `Stop` event (turn-end) and saves dirty trees to `auto-save/<ts>` branches automatically. Recovery via `git checkout`.
+
+`/work` is the primary consumer because long-running iteration loops, mid-task redirects, and crashed sessions all happen there. `/release` benefits less (the release flow is typically short) but the commit-on-stop backstop reduces the cost of an interrupted CHANGELOG edit or tag prep.
+
+Splitting the hooks into agent-toolkit (not bolting them onto the harness) keeps the harness phase-shaped: the harness owns the phase workflow + canonical sub-agents + setup-specific skills; agent-toolkit owns customizations that ride on top. Anyone (harness user or not) can install the toolkit on top to get the precision layer. Graceful-skip framing on both new sections means a harness without the toolkit installed still satisfies the phase contracts.
+
+**What it doesn't do:**
+
+- Doesn't auto-dispatch the hooks from any phase. The toolkit's installer registers them in Claude Code's settings.json; once installed, they fire on every relevant event. Phase specs document the convention; the firing is host-level, not phase-level.
+- Doesn't add a new harness ADR. The design decisions (per-repo file location, audit-trail rename, safety-branch not current-branch, Stop-event-only for v0.7.0, alphabetical ordering, claude-code-only scope, Python helper for settings merge) live in [agent-toolkit ADR 0003](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/decisions/0003-base-operator-hooks.md) since the customizations live there.
+- Doesn't require the toolkit. Without `agent-toolkit` installed, both new sections graceful-skip silently and the existing flows continue to satisfy the phase contracts.
+- Doesn't ship hooks for Antigravity or Gemini CLI. Both lack first-class hook surfaces today. Manual equivalents (always-on rules / operator prompts that check the trigger files between steps) are documented in agent-toolkit's how-to but no scripts ship for them.
+
+**Tracked as:**
+
+- Task 3 of plan #4 (base operator-control hooks) in `.harness/PLAN.md`. Plan #4 is a 5-task project spanning both repos: tasks 1, 2, 4 in `agent-toolkit` (installer + bodies + docs); task 3 in harness (this release); task 5 is the paired release.
+- [v2.2.0](https://github.com/alexherrero/agentic-harness/releases/tag/v2.2.0) — release notes, [CHANGELOG.md](https://github.com/alexherrero/agentic-harness/blob/main/CHANGELOG.md)
+- Paired release: [agent-toolkit v0.7.0](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.7.0).
+
+**Related pages:**
+
+- [agent-toolkit ADR 0003 — base operator-control hooks](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/decisions/0003-base-operator-hooks.md)
+- [agent-toolkit how-to: Use-The-Base-Hooks](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/how-to/Use-The-Base-Hooks.md)
+- [kill-switch hook spec](https://github.com/alexherrero/agent-toolkit/blob/main/hooks/kill-switch/hook.md)
+- [steer hook spec](https://github.com/alexherrero/agent-toolkit/blob/main/hooks/steer/hook.md)
+- [commit-on-stop hook spec](https://github.com/alexherrero/agent-toolkit/blob/main/hooks/commit-on-stop/hook.md)
 
 ## 2026-05-13 — v2.1.0: `/review` augmentable with agent-toolkit's `evaluator`
 

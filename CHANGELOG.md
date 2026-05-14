@@ -5,6 +5,40 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.2.0] — 2026-05-14 — `/work` + `/release` augmentable with agent-toolkit's base hooks (additive)
+
+Additive minor — no breaking changes. Two new optional sections in the harness phase specs document how to dispatch the three new base operator-control hooks (`kill-switch`, `steer`, `commit-on-stop`) shipped in [`agent-toolkit v0.7.0`](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.7.0) alongside the existing phase workflow.
+
+The three hooks are lifted from the cwc-long-running-agents pattern and give the operator precise control over long-running Claude Code sessions:
+
+| Hook | Trigger | Effect |
+|---|---|---|
+| `kill-switch` | `PreToolUse` | `touch .harness/STOP` halts the next tool call; `rm` to resume |
+| `steer` | `PreToolUse` | Write `.harness/STEER.md` for mid-run redirect (contents → agent context; file → `STEER.consumed-<ts>.md`) |
+| `commit-on-stop` | `Stop` event | Dirty tree → `auto-save/<ts>` safety branch with commit; never modifies current branch; never pushes |
+
+`/work` is the primary beneficiary — long-running iteration loops, mid-task redirects, and crashed sessions all become recoverable motions. `/release` benefits less from kill-switch + steer (release flows are typically short) but the `commit-on-stop` backstop reduces the cost of an interrupted release prep. Both new sections graceful-skip when `agent-toolkit` is absent; the phase contracts don't require the hooks.
+
+Paired with [`agent-toolkit v0.7.0`](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.7.0). The decision rationale for the hooks' design (per-repo file location, audit-trail rename for STEER, safety-branch not current-branch, Stop-event-only for v0.7.0, alphabetical-install-order hook ordering, claude-code-only host scope, Python helper for settings.json merge) lives in [agent-toolkit ADR 0003](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/decisions/0003-base-operator-hooks.md). No new harness-side ADR — this release is the integration surface, not the design decision.
+
+### Added
+
+- **`/work` phase spec — new section "Long-running `/work` — operator-control hooks (agent-toolkit)"** (`harness/phases/03-work.md`). 20-line section between "When to invoke /review" and "Failure modes to avoid". Reference table for all three hooks (event + trigger + effect); when-they-earn-their-keep framing (runaway loop / mid-task redirect / crashed session); the alphabetical-ordering invariant (kill-switch fires before steer in PreToolUse — a halt always takes precedence over a steer); graceful-skip framing.
+- **`/release` phase spec — new section "Optional: `commit-on-stop` safety net (agent-toolkit)"** (`harness/phases/05-release.md`). Shorter 4-line section between progress.md closeout and "Failure modes to avoid". Documents commit-on-stop as the safety net for interrupted release flows (mid-CHANGELOG-edit, mid-tag-prep); cross-references the `/work` section for the full hook lineup; notes kill-switch + steer provide less marginal value for typically-short release flows.
+- **`scripts/check-references.py`** — `EXTERNAL_CUSTOMIZATIONS` set extended with `kill-switch`, `steer`, `commit-on-stop`. Inline-commented as forward-compatibility documentation: the existing `DISPATCH_AGENT_RE` and `INVOKE_SKILL_RE` regexes don't currently match the hooks' phase-spec phrasing (hooks fire from the host, not via agent dispatch — phase specs use markdown links + "the X hook" prose rather than `<name>` hook dispatch patterns), so the set entries don't trigger today; they're listed for the possibility of a future hook-reference regex.
+
+### Changed
+
+- **Adapter wrappers** (`adapters/claude-code/commands/{work,release}.md`, `adapters/antigravity/workflows/{work,release}.md`, `adapters/gemini/commands/{work,release}.toml`) — untouched. All six reference their respective canonical phase spec (`harness/phases/0{3,5}-*.md`) exactly once, so the new sections inherit via the existing canonical-reference pattern without per-adapter edits.
+
+### Internal
+
+- **Task 3 of plan #4** in `.harness/PLAN.md` (base operator-control hooks). Plan #4 is a 5-task project spanning both repos: tasks 1, 2, 4 land in `agent-toolkit` (installer + body + docs); task 3 is the harness-side wiring (this release); task 5 is the coordinated release pair (this release + agent-toolkit v0.7.0).
+- **Design call deviation from plan**: did NOT add a new `INVOKE_HOOK_RE` regex. Hooks fire from the host, not via agent dispatch — there's no "the agent invokes a hook" semantics like there is for sub-agents/skills. Phase-spec phrasing uses markdown links + "the X hook" prose, neither of which matches a `<name>` hook dispatch pattern. EXTERNAL_CUSTOMIZATIONS entries for the three hook names are forward-compatibility documentation; future plans may add a hook-reference regex if needed.
+- **Negative test confirmed** the exclusion isn't currently load-bearing: removing `kill-switch` from `EXTERNAL_CUSTOMIZATIONS` doesn't break `check-references` because no existing regex matches the phrasing. Acceptable shape; documented inline.
+
+[v2.2.0]: https://github.com/alexherrero/agentic-harness/releases/tag/v2.2.0
+
 ## [v2.1.0] — 2026-05-13 — `/review` augmentable with agent-toolkit's `evaluator` (additive)
 
 Additive minor — no breaking changes. The `/review` phase spec gains a new optional **§3b "Optional: evaluator augmentation (agent-toolkit)"** documenting how to dispatch the [`evaluator`](https://github.com/alexherrero/agent-toolkit/blob/main/agents/evaluator.md) sub-agent (shipped in [agent-toolkit v0.6.0](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.6.0)) alongside the existing `adversarial-reviewer` flow.
