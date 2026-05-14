@@ -131,6 +131,10 @@ Once the user has taken the release actions (or chosen not to), append to `.harn
 
 If the release was held, leave `PLAN.md` as-is. If it shipped, archive or clear `PLAN.md` to make room for the next plan — ask the user which.
 
+## Optional: `commit-on-stop` safety net (agent-toolkit)
+
+If [`agent-toolkit`](https://github.com/alexherrero/agent-toolkit) is installed alongside the harness, the [`commit-on-stop`](https://github.com/alexherrero/agent-toolkit/blob/main/hooks/commit-on-stop/hook.md) hook fires on Claude Code's `Stop` event. If a `/release` flow is interrupted with uncommitted changes (e.g. mid-CHANGELOG-edit, mid-tag-prep), the dirty tree gets saved to an `auto-save/<iso-timestamp>` branch automatically — next session recovers via `git checkout auto-save/<ts>`. Same safety-net mechanism as in [`/work`](03-work.md#long-running-work--operator-control-hooks-agent-toolkit); `/release` benefits less from the kill-switch + steer pair (release flow is typically short) but the commit-on-stop backstop reduces the cost of an interrupted release prep. Graceful-skip: install agent-toolkit to enable; otherwise the release continues to work the same way it always has.
+
 ## Failure modes to avoid
 
 - **Auto-pushing or auto-merging.** The blast radius is too large to trust to the agent, and a user approving "release" once doesn't mean they approve every push/merge/tag forever.

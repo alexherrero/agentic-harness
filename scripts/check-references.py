@@ -208,6 +208,15 @@ EXTERNAL_CUSTOMIZATIONS = {
     "ship-release",       # agent-toolkit/skills/ship-release/
     # Agents added in agent-toolkit v0.6.0 (referenced from /review in v2.1.0):
     "evaluator",          # agent-toolkit/agents/evaluator.md
+    # Hooks added in agent-toolkit v0.7.0 (referenced from /work + /release in v2.2.0).
+    # These don't trip the existing DISPATCH_AGENT_RE / INVOKE_SKILL_RE regexes
+    # (phase-spec phrasing uses markdown links + "the <name> hook" prose, not
+    # "<name> hook" as a dispatch pattern — hooks fire from the host, not via
+    # agent dispatch). Listed here for forward-compatibility documentation:
+    # future plans may add a hook-reference regex that uses this set.
+    "kill-switch",        # agent-toolkit/hooks/kill-switch/
+    "steer",              # agent-toolkit/hooks/steer/
+    "commit-on-stop",     # agent-toolkit/hooks/commit-on-stop/
 }
 
 

@@ -154,6 +154,26 @@ Not every task needs adversarial review. Review is expensive (fresh context, adv
 
 Skip `/review` for routine changes (new tests, pure refactors, docs, scaffolding). The harness will still run gates on the next `/work` session before it does anything, so routine changes are caught by the next iteration anyway.
 
+## Long-running `/work` — operator-control hooks (agent-toolkit)
+
+If [`agent-toolkit`](https://github.com/alexherrero/agent-toolkit) is installed alongside the harness, three Claude-Code-only hooks land at `.claude/hooks/` and give the operator precise control over a long-running `/work` session without closing the session:
+
+| Hook | Trigger | What it does |
+|---|---|---|
+| [`kill-switch`](https://github.com/alexherrero/agent-toolkit/blob/main/hooks/kill-switch/hook.md) | `PreToolUse` (every tool call) | Touch `.harness/STOP` to halt; `rm` to resume. Exits 2 + halt message on stderr; Claude Code blocks the tool call. |
+| [`steer`](https://github.com/alexherrero/agent-toolkit/blob/main/hooks/steer/hook.md) | `PreToolUse` (every tool call) | Write `.harness/STEER.md` with a "do it this way instead" instruction; next tool call picks it up; file renamed to `STEER.consumed-<iso-ts>.md` for audit trail. |
+| [`commit-on-stop`](https://github.com/alexherrero/agent-toolkit/blob/main/hooks/commit-on-stop/hook.md) | `Stop` event (end of each turn) | If the working tree is dirty, creates `auto-save/<iso-ts>` branch and commits the work there. Returns HEAD to the original branch with a clean tree. Recovery: `git checkout auto-save/<ts>`. |
+
+**Why these earn their keep in long-running `/work`.** A `/work` session that hits an unexpected loop, drifts off-spec, or crashes mid-task today loses information — the only kill-switch is closing the session, the only redirect is restart, and crash recovery is hoping the working tree wasn't important. These three hooks make each precise:
+
+- **Runaway loop**: `touch .harness/STOP` halts the next tool call without ending the session.
+- **Mid-task redirect**: write `.harness/STEER.md` with the correction; the agent sees it on the next tool call without restart.
+- **Crashed session / interrupted at task end**: commit-on-stop fires on the `Stop` event and saves the in-flight work to `auto-save/<ts>` — next session recovers via `git checkout`.
+
+**Ordering invariant.** `kill-switch` and `steer` both fire on `PreToolUse`. Alphabetical install order means `kill-switch` runs first — if `.harness/STOP` is present, the tool call is blocked **before** `steer` reads `STEER.md`. Halt always takes precedence over a steer.
+
+**Graceful-skip.** Install `agent-toolkit` to enable; otherwise `/work` runs without the hooks. The phase contract doesn't require them — they're an operator-precision layer on top of the existing workflow. See [agent-toolkit's how-to](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/how-to/Use-The-Base-Hooks.md) for installation + worked scenarios.
+
 ## Failure modes to avoid
 
 - **Starting the next task "while you're in there."** The single most common way `/work` breaks coherence. Stop after one.
