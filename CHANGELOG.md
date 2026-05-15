@@ -5,6 +5,42 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.3.0] — 2026-05-15 — `/release` + `/setup` integration for agent-toolkit's `/design` skill (additive)
+
+Additive minor — no breaking changes. Two harness extensions that integrate with the new [`agent-toolkit v0.8.0`](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.8.0) `/design` skill: a `/release` lifecycle hook that auto-promotes queued plans + transitions design Status `final → launched` + surfaces launched designs in the wiki; and a `/setup` scaffolding extension for the `wiki/explanation/designs/` landing dir. Plus a small `/work` Step 11 summary template enhancement that applies to any harness install with a ROADMAP-driven multi-plan project.
+
+Paired with [`agent-toolkit v0.8.0`](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.8.0), which ships the `/design` skill itself with three sub-commands (`author` / `translate` / `sequence`). The harness extensions in this release light up the integration points the toolkit-side skill writes to:
+
+- `/design sequence` writes a first PLAN.md to `<project>/.harness/PLAN.md` + queues subsequent parts at `<project>/.harness/designs/<doc-slug>/queued-plans/<part-slug>.PLAN.md`. **v2.3.0's `/release` §1b consumes that queue** — auto-promoting the next plan when the active completes, or transitioning the parent design Status when the last part ships.
+- `/design author --visibility published` routes design docs to `wiki/explanation/designs/<slug>.md`. **v2.3.0's `/setup` §7 extension scaffolds the `wiki/explanation/designs/` landing dir** so target projects have the destination ready before first design.
+
+Without `agent-toolkit` installed alongside, both extensions silent-skip — the harness still works standalone exactly as it did in v2.2.0.
+
+### Added
+
+- **`harness/phases/05-release.md` §1b "Design-doc lifecycle check (agent-toolkit)"** — new section between §1 (Verify plan completion) and §2 (Re-run gates). Three cases handled:
+  - **Case A — not design-sourced**: silent no-op; existing `/release` flow continues unchanged.
+  - **Case B — design-sourced, more queued plans exist**: archive completed plan to `.harness/PLAN.archive.YYYYMMDD-<part-slug>.md`; promote next queued plan (alphabetical order — same deterministic ordering `/design sequence` uses) to `.harness/PLAN.md`; append parent design's Document History with the promotion entry; **halt /release** with operator-facing next-step message. No release to prepare yet — just a plan promotion.
+  - **Case C — design-sourced, LAST queued plan**: archive completed plan; transition parent design Status `final → launched`; append Document History with launched-state entry; **if `visibility: published`** update `wiki/Home.md` + `wiki/_Sidebar.md` to surface the design in a "Designs" section (idempotent — re-runs are no-op); continue with §2-§9 — this IS a real release.
+  - **Graceful-skip**: silent no-op when no design-doc origin signal present (`agent-toolkit` not installed, or plan was hand-authored).
+- **`harness/phases/01-setup.md` §7 (Populate the wiki scaffold) extended** with a new bullet for `wiki/explanation/designs/` landing dir. Cross-refs the `agent-toolkit` `/design` skill how-to + the §1b `/release` lifecycle that transitions designs to launched.
+- **`templates/wiki/explanation/designs/`** — NEW scaffold dir installed by `install.sh`'s per-file walk into target projects. Contents: `.gitkeep` (keeps dir tracked in git) + `README.md` (one-paragraph explanation of visibility routing rules, the Status lifecycle, the wiki surfacing trigger, and the toolkit dependency).
+- **`scripts/check-references.py` `EXTERNAL_CUSTOMIZATIONS` extended** with `design` entry. Inline comment captures the current state honestly: phase specs use slash-command phrasing "the `/design` skill" with leading slash, which keeps it from matching `INVOKE_SKILL_RE` (regex char class `[A-Za-z0-9_-]` excludes `/`), so this exclusion is forward-compatibility documentation rather than currently load-bearing. If phase spec phrasing ever shifts to bare "`design`", the exclusion becomes load-bearing.
+- **`/work` Step 11 summary template enhanced for ROADMAP-driven projects** (`harness/phases/03-work.md`). Opt-in via the `.harness/ROADMAP.md` signal — single-plan installs keep the existing minimal `≤5-bullet summary`; multi-plan projects get the richer template (roadmap context lead-in, ✅/⬜ chart, link block to `.harness/` state files, explicit handoff phrase, optional commit SHA / CI status / design calls detail). Applies to any harness install with a roadmap; not specific to the design skill.
+
+### Changed
+
+- **Adapter wrappers untouched.** All six `/release` + `/setup` adapter wrappers (claude-code/commands, antigravity/workflows, gemini/commands) reference their canonical phase spec exactly once; the new §1b + extended §7 inherit via the existing canonical-reference pattern. Same pattern as plan #3 task 3 (evaluator integration in /review) and plan #4 task 3 (hooks integration in /work + /release).
+
+### Internal
+
+- **Task 5 of plan #6** (design skill v1) — the only task in plan #6 that touches the harness. Tasks 1-4 + 6 land in `agent-toolkit`; task 7 is this paired release.
+- **Negative test on `EXTERNAL_CUSTOMIZATIONS`** during implementation confirmed the `design` entry is **not currently load-bearing** — phase spec phrasing uses `` `/design` `` (slash-command form) which doesn't match `INVOKE_SKILL_RE`'s char class. Updated the inline comment to reflect this honestly; entry stays as forward-compatibility documentation.
+- **`/work` Step 11 enhancement source**: came out of the dev-flow codification work (commit `ce86977`, 2026-05-14), separate from plan #6 but shipping in the same release window. Universal applicability — any harness install with a `ROADMAP.md` benefits.
+- **All 8 harness gates green** on every commit in the `v2.2.0..v2.3.0` range.
+
+[v2.3.0]: https://github.com/alexherrero/agentic-harness/releases/tag/v2.3.0
+
 ## [v2.2.0] — 2026-05-14 — `/work` + `/release` augmentable with agent-toolkit's base hooks (additive)
 
 Additive minor — no breaking changes. Two new optional sections in the harness phase specs document how to dispatch the three new base operator-control hooks (`kill-switch`, `steer`, `commit-on-stop`) shipped in [`agent-toolkit v0.7.0`](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.7.0) alongside the existing phase workflow.

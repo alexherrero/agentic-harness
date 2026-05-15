@@ -8,12 +8,53 @@ This page is **narrative**, not a changelog — the authoritative version log is
 
 | Date | Plan / release | Features flipped | Notes |
 |---|---|---|---|
+| 2026-05-15 | [v2.3.0](https://github.com/alexherrero/agentic-harness/releases/tag/v2.3.0) — `/release` + `/setup` integration for agent-toolkit's `/design` skill | Additive: `/release` §1b lifecycle hook auto-promotes queued plans + transitions design `final → launched` + surfaces launched published designs in `wiki/Home.md`; `/setup` §7 scaffolds `wiki/explanation/designs/` landing dir; `templates/wiki/explanation/designs/.gitkeep` + README; `EXTERNAL_CUSTOMIZATIONS` extends with `design`; `/work` Step 11 ROADMAP-driven enhancement (universal) | 2 commits (`v2.2.0..v2.3.0`); paired with [agent-toolkit v0.8.0](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.8.0) which ships the `/design` skill with 3 sub-commands; no new harness ADR (the design decision lives in [agent-toolkit ADR 0004](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/decisions/0004-design-skill.md)); harness still functions standalone — §1b silent-skips when no design-doc origin signal |
 | 2026-05-14 | [v2.2.0](https://github.com/alexherrero/agentic-harness/releases/tag/v2.2.0) — `/work` + `/release` augmentable with agent-toolkit's base hooks | Additive: `/work` + `/release` phase specs gain optional sections documenting kill-switch + steer + commit-on-stop dispatch from agent-toolkit (operator-precision hooks for long-running sessions); `check-references.py` `EXTERNAL_CUSTOMIZATIONS` extended with 3 new hook names | 1 commit (`v2.1.0..v2.2.0`); paired with [agent-toolkit v0.7.0](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.7.0) which ships the three hook customizations + first-class `kind: hook` installer support; no new harness ADR (the design decision lives in [agent-toolkit ADR 0003](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/decisions/0003-base-operator-hooks.md)); harness still functions standalone — both sections graceful-skip when toolkit absent |
 | 2026-05-13 | [v2.1.0](https://github.com/alexherrero/agentic-harness/releases/tag/v2.1.0) — `/review` augmentable with agent-toolkit's `evaluator` | Additive: `/review` phase spec gains §3b documenting evaluator dispatch alongside `adversarial-reviewer` (complementary, not competing); `check-references.py` `EXTERNAL_SKILLS` → `EXTERNAL_CUSTOMIZATIONS` rename to cover cross-repo agent references | 1 commit (`v2.0.0..v2.1.0`); paired with [agent-toolkit v0.6.0](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.6.0) which ships the evaluator; no new harness ADR (the decision lives in [agent-toolkit ADR 0002](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/decisions/0002-evaluator-design.md)); harness still functions standalone — §3b graceful-skips when toolkit absent |
 | 2026-05-12 | [v2.0.0](https://github.com/alexherrero/agentic-harness/releases/tag/v2.0.0) — `agent-toolkit` repo split: `dependabot-fixer` + `ship-release` moved out | **BREAKING**: two skills migrated to [`agent-toolkit`](https://github.com/alexherrero/agent-toolkit); new shared `lib/install/` byte-identical across repos; PII + lib-parity CI gates added | 9 commits (`v1.0.0..v2.0.0`); new [ADR 0006](0006-agent-toolkit-split); paired with [agent-toolkit v0.5.0](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.5.0); harness shared-skills narrow 4→2; cross-platform byte-identity work surfaced + fixed four real Mac/Windows bugs |
 | 2026-05-11 | [v1.0.0](https://github.com/alexherrero/agentic-harness/releases/tag/v1.0.0) — Three-adapter scope; Codex dropped; 1.0.0 commitment | **BREAKING**: Codex adapter removed; true-sync `--update` semantics; firm-semver 1.0.0 floor | 13 commits (`v0.9.0..v1.0.0`); new [ADR 0005](0005-drop-codex-support); ~1300 lines net removed; first major version; parity invariant simplified to three adapters |
 | 2026-04-23 | [v0.9.0](https://github.com/alexherrero/agentic-harness/releases/tag/v0.9.0) — Diátaxis documentation spec + `/doctor` skill | Diátaxis rollout (ADR 0004, 7-task plan); `migrate-to-diataxis` skill; mode-aware `documenter` writes; `/doctor` skill for post-install verification | 10 commits (`v0.8.7..v0.9.0`); new [ADR 0004](0004-diataxis-documentation-spec); two new shared skills; `scripts/check-wiki.py` shipped + flipped to `--strict`; wiki dogfood reshaped with `git mv` for blame |
 | 2026-04-21 | [v0.8.7](https://github.com/alexherrero/agentic-harness/releases/tag/v0.8.7) — GitHub Projects wiring + documenter end-to-end dogfood | `feat-gh-projects-integration` (pending — gated on offer-cycle observation); `feat-documenter-subagent` (this sweep is the dogfood) | 4 commits (`801dbd7..HEAD`), 23 files; new [ADR 0003](0003-ProjectsV2-Ownership-And-Linking), new [Feature page](GitHub-Projects-Integration) |
+
+## 2026-05-15 — v2.3.0: `/release` + `/setup` integration for agent-toolkit's `/design` skill
+
+**Commit range:** `v2.2.0..v2.3.0` (2 commits on `main`). Release notes: [v2.3.0](https://github.com/alexherrero/agentic-harness/releases/tag/v2.3.0). Paired with [agent-toolkit v0.8.0](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.8.0).
+
+**What shipped:**
+
+- **`/release` §1b "Design-doc lifecycle check (agent-toolkit)"** — new section between §1 (Verify plan completion) and §2 (Re-run gates). Three cases: (A) silent no-op when plan isn't design-sourced; (B) archive completed plan + promote next queued plan + halt /release when more parts remain in the design; (C) archive + transition parent design Status `final → launched` + update `wiki/Home.md` + `_Sidebar.md` to surface launched published designs + continue release flow when this was the LAST queued part. Graceful-skip silent no-op when no design-doc origin signal present.
+- **`/setup` §7 (Populate the wiki scaffold)** extended with `wiki/explanation/designs/` landing dir bullet — cross-refs the agent-toolkit `/design` skill how-to + the §1b /release lifecycle.
+- **`templates/wiki/explanation/designs/`** — NEW scaffold dir installed by `install.sh`'s per-file walk. Contents: `.gitkeep` + `README.md` (one-paragraph explanation of visibility routing rules, Status lifecycle, wiki surfacing trigger, toolkit dependency).
+- **`scripts/check-references.py`** — `EXTERNAL_CUSTOMIZATIONS` extended with `design` entry (currently forward-compatibility documentation because phase specs use slash-command phrasing `` `/design` `` which doesn't match `INVOKE_SKILL_RE` — inline comment captures this honestly).
+- **`/work` Step 11 summary template enhancement** for ROADMAP-driven multi-plan projects — opt-in via the `.harness/ROADMAP.md` signal. Adds roadmap context lead-in + ✅/⬜ chart + link block to `.harness/` state files + explicit handoff phrase. Universal applicability — any harness install with a roadmap benefits.
+
+**Why it shipped this shape:**
+
+The harness needed integration hooks for the agent-toolkit `/design` skill's per-part PLAN.md workflow. The toolkit-side skill writes PLAN.md files to `.harness/` (active + queued); without the harness lifecycle hook, operators would have to manually promote queued plans after each part's `Status: done` completion. v2.3.0's §1b automates that promotion + handles the design `final → launched` transition + wiki surfacing for published designs.
+
+The split between toolkit (skill body) and harness (lifecycle integration) follows the customization-vs-phase pattern from agentic-harness ADR 0006: customizations live in toolkit; phase-gated workflow lives in harness; the two integrate via well-defined hand-off points. v2.3.0 ships the harness-side hand-off; v0.8.0 of the toolkit ships the skill that writes to it.
+
+The `/work` Step 11 enhancement came out of the dev-flow codification work (separate from plan #6 but shipping in the same release window). It's the universal good — opt-in via `.harness/ROADMAP.md` signal so single-plan installs stay minimal; multi-plan projects get the navigation aids that match their scale.
+
+**What it doesn't do:**
+
+- Doesn't ship the `/design` skill itself. That lives in [agent-toolkit v0.8.0](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.8.0).
+- Doesn't auto-detect orphan queued plans without `parent_design_doc:` frontmatter. The §1b detection signal is the frontmatter field; hand-authored plans without it skip §1b entirely.
+- Doesn't surface confidential designs in the wiki. The visibility check is hard — `confidential` designs at `.harness/designs/` never appear in `wiki/Home.md` even at `launched` Status.
+- Doesn't add a new harness ADR. The design decision lives in [agent-toolkit ADR 0004](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/decisions/0004-design-skill.md) since the customization itself lives there.
+
+**Tracked as:**
+
+- Task 5 of plan #6 (design skill v1) in `.harness/PLAN.md`. Plan #6 is a 7-task project spanning both repos: tasks 1-4 + 6 in `agent-toolkit` (template + 3 sub-command bodies + docs); task 5 in harness (this release); task 7 is the coordinated release pair.
+- [v2.3.0](https://github.com/alexherrero/agentic-harness/releases/tag/v2.3.0) — release notes, [CHANGELOG.md](https://github.com/alexherrero/agentic-harness/blob/main/CHANGELOG.md)
+- Paired release: [agent-toolkit v0.8.0](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.8.0)
+
+**Related pages:**
+
+- [agent-toolkit ADR 0004 — Design skill design](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/decisions/0004-design-skill.md)
+- [agent-toolkit how-to: Use-The-Design-Skill](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/how-to/Use-The-Design-Skill.md) — three worked scenarios end-to-end
+- [agent-toolkit /design skill spec](https://github.com/alexherrero/agent-toolkit/blob/main/skills/design/SKILL.md)
+- [agent-toolkit 10-section design-doc template](https://github.com/alexherrero/agent-toolkit/blob/main/skills/design/templates/design-doc.md)
 
 ## 2026-05-14 — v2.2.0: `/work` + `/release` augmentable with agent-toolkit's base hooks
 
