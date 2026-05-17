@@ -5,6 +5,37 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.3.1] — 2026-05-16 — `/plan` external-review-handoff option (paired with toolkit v0.8.1)
+
+Patch — additive only, no breaking changes. Adds an **external-review-handoff option** to the harness's `/plan` phase, mirroring the option added to `agent-toolkit`'s `/design` skill in [v0.8.1](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.8.1). Operators can now hand off a drafted `.harness/PLAN.md` to Antigravity IDE for inline-comment review + Gemini-applies-comments revision, then resume in Claude Code with a diff-on-resume pass against a pre-handoff snapshot.
+
+Dogfood-driven amendment from plan #6's first real design exercise (MemoryVault): the inline block-by-block walk pattern works but tires fast on long content. Antigravity's native inline-comment UI + Gemini-applies-comments pattern is dramatically better for review-style work; the new option lets operators reach for that workflow on long plans without leaving the harness.
+
+Paired with [`agent-toolkit v0.8.1`](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.8.1), which adds the same option to `/design author` Step 5 + Step 6 + `/design translate` Step 4. Shared template (`agent-toolkit/skills/design/templates/transfer-context.md`), shared workflow shape, shared cleanup discipline across both repos.
+
+### Mechanics
+
+When the operator picks "Hand off for external review" after the agent drafts `.harness/PLAN.md`:
+
+1. **Pre-handoff snapshot** at `.harness/PLAN.pre-handoff-<YYYYMMDDhhmmss>.md` — full copy used on resume to diff against revised version.
+2. **Transfer-context file** at `.harness/transfer/plan-<YYYYMMDDhhmmss>.md` — uses the toolkit-side template; `DOC_TYPE: plan` triggers plan-specific guardrails (harness PLAN.md shape per `templates/PLAN.md`; Status lifecycle `draft → in-progress → done` don't-transition; paragraph-long Status:[x] narratives required; Locked design calls section at the bottom is load-bearing). Inlines dev-flow conventions (Antigravity won't see device-global `~/.claude/CLAUDE.md`) + operator intent extracted from brief + Goal sections + recent decisions extracted from the plan's `## Locked design calls` section + most recent `.harness/progress.md` entries.
+3. **Handoff prompt** output with explicit Antigravity steps: open `.harness/PLAN.md` + transfer-context file, add inline comments via Antigravity's native UI, ask Gemini to apply per the transfer-context. Gemini revises + writes change-summary log at `.harness/PLAN.diff.md`.
+4. **Resume flow** (`/plan --resume-external-review` or natural "plan review complete"): harness reads revised PLAN.md + change-summary log, diffs against pre-handoff snapshot, surfaces findings (task list changes / verification spec changes / `## Locked design calls` modifications / Gemini's adjacent-issue suggestions), asks Accept / Iterate / Discard. Accept archives snapshot + transfer-context to `.harness/transfer/_archive/`; Iterate regenerates for another round; Discard restores from snapshot.
+
+### Added
+
+- **`harness/phases/02-plan.md` §4b "External-review handoff (optional, alternative to inline iteration — v2.3.1+)"** — new section between §4 (Write PLAN.md) and §5 (Update features.json) documenting the when-to-offer trigger, the pre-handoff snapshot write, the transfer-context generation (with `DOC_TYPE: plan` guardrails), the handoff prompt output, and the resume flow with diff-on-resume + Accept/Iterate/Discard. Cross-references the toolkit-side ADR 0004 amendment as the design rationale (shared design across both repos).
+
+### Changed
+
+- Adapter wrappers (`.claude/commands/plan.md` + Antigravity adapter) untouched — canonical-reference inheritance: adapters point at `harness/phases/02-plan.md` and pick up the new §4b automatically.
+
+### Internal
+
+- First cross-repo dogfood-driven amendment shipped as a coordinated patch pair. Pattern: ship v1 of both repos, dogfood on a real exercise (MemoryVault `/design author`), surface gaps that apply to both surfaces (the `/design` skill on toolkit + the `/plan` phase on harness), ship paired patches with the amendment captured in the toolkit-side ADR (one ADR for both since the design is shared).
+- Implementation lives entirely in phase spec documentation. No script changes, no adapter changes, no template changes (the harness reuses the toolkit-side `transfer-context.md` template). Harness-side install validates toolkit presence; graceful-skip warning if toolkit is not installed (operator gets a message: "External-review handoff requires `agent-toolkit` v0.8.1+ installed alongside; toolkit not detected — inline review only").
+- Re-audit triggers in the toolkit-side ADR 0004 amendment fire after the next 3-5 real external-review handoffs on either skill point — surfaces apply to both repos.
+
 ## [v2.3.0] — 2026-05-15 — `/release` + `/setup` integration for agent-toolkit's `/design` skill (additive)
 
 Additive minor — no breaking changes. Two harness extensions that integrate with the new [`agent-toolkit v0.8.0`](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.8.0) `/design` skill: a `/release` lifecycle hook that auto-promotes queued plans + transitions design Status `final → launched` + surfaces launched designs in the wiki; and a `/setup` scaffolding extension for the `wiki/explanation/designs/` landing dir. Plus a small `/work` Step 11 summary template enhancement that applies to any harness install with a ROADMAP-driven multi-plan project.

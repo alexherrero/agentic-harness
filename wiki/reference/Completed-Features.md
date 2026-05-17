@@ -8,6 +8,7 @@ This page is **narrative**, not a changelog — the authoritative version log is
 
 | Date | Plan / release | Features flipped | Notes |
 |---|---|---|---|
+| 2026-05-16 | [v2.3.1](https://github.com/alexherrero/agentic-harness/releases/tag/v2.3.1) — `/plan` external-review-handoff option (dogfood-driven patch) | Additive: `/plan` phase spec §4b documents the external-review-handoff option (pre-handoff snapshot + transfer-context generation + handoff prompt + diff-on-resume + Accept/Iterate/Discard) as an alternative to inline iteration on long plans | 1 commit (`v2.3.0..v2.3.1`); paired with [agent-toolkit v0.8.1](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.8.1) which adds the same option to `/design author` + `/design translate`; shared transfer-context template lives toolkit-side; first cross-repo dogfood-driven amendment shipped as coordinated patch pair (surfaced during MemoryVault design-doc walk on 2026-05-15); design rationale in toolkit-side [ADR 0004 amendment (2026-05-16)](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/decisions/0004-design-skill.md#amendment--2026-05-16-v081-external-review-handoff-option) |
 | 2026-05-15 | [v2.3.0](https://github.com/alexherrero/agentic-harness/releases/tag/v2.3.0) — `/release` + `/setup` integration for agent-toolkit's `/design` skill | Additive: `/release` §1b lifecycle hook auto-promotes queued plans + transitions design `final → launched` + surfaces launched published designs in `wiki/Home.md`; `/setup` §7 scaffolds `wiki/explanation/designs/` landing dir; `templates/wiki/explanation/designs/.gitkeep` + README; `EXTERNAL_CUSTOMIZATIONS` extends with `design`; `/work` Step 11 ROADMAP-driven enhancement (universal) | 2 commits (`v2.2.0..v2.3.0`); paired with [agent-toolkit v0.8.0](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.8.0) which ships the `/design` skill with 3 sub-commands; no new harness ADR (the design decision lives in [agent-toolkit ADR 0004](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/decisions/0004-design-skill.md)); harness still functions standalone — §1b silent-skips when no design-doc origin signal |
 | 2026-05-14 | [v2.2.0](https://github.com/alexherrero/agentic-harness/releases/tag/v2.2.0) — `/work` + `/release` augmentable with agent-toolkit's base hooks | Additive: `/work` + `/release` phase specs gain optional sections documenting kill-switch + steer + commit-on-stop dispatch from agent-toolkit (operator-precision hooks for long-running sessions); `check-references.py` `EXTERNAL_CUSTOMIZATIONS` extended with 3 new hook names | 1 commit (`v2.1.0..v2.2.0`); paired with [agent-toolkit v0.7.0](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.7.0) which ships the three hook customizations + first-class `kind: hook` installer support; no new harness ADR (the design decision lives in [agent-toolkit ADR 0003](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/decisions/0003-base-operator-hooks.md)); harness still functions standalone — both sections graceful-skip when toolkit absent |
 | 2026-05-13 | [v2.1.0](https://github.com/alexherrero/agentic-harness/releases/tag/v2.1.0) — `/review` augmentable with agent-toolkit's `evaluator` | Additive: `/review` phase spec gains §3b documenting evaluator dispatch alongside `adversarial-reviewer` (complementary, not competing); `check-references.py` `EXTERNAL_SKILLS` → `EXTERNAL_CUSTOMIZATIONS` rename to cover cross-repo agent references | 1 commit (`v2.0.0..v2.1.0`); paired with [agent-toolkit v0.6.0](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.6.0) which ships the evaluator; no new harness ADR (the decision lives in [agent-toolkit ADR 0002](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/decisions/0002-evaluator-design.md)); harness still functions standalone — §3b graceful-skips when toolkit absent |
@@ -15,6 +16,41 @@ This page is **narrative**, not a changelog — the authoritative version log is
 | 2026-05-11 | [v1.0.0](https://github.com/alexherrero/agentic-harness/releases/tag/v1.0.0) — Three-adapter scope; Codex dropped; 1.0.0 commitment | **BREAKING**: Codex adapter removed; true-sync `--update` semantics; firm-semver 1.0.0 floor | 13 commits (`v0.9.0..v1.0.0`); new [ADR 0005](0005-drop-codex-support); ~1300 lines net removed; first major version; parity invariant simplified to three adapters |
 | 2026-04-23 | [v0.9.0](https://github.com/alexherrero/agentic-harness/releases/tag/v0.9.0) — Diátaxis documentation spec + `/doctor` skill | Diátaxis rollout (ADR 0004, 7-task plan); `migrate-to-diataxis` skill; mode-aware `documenter` writes; `/doctor` skill for post-install verification | 10 commits (`v0.8.7..v0.9.0`); new [ADR 0004](0004-diataxis-documentation-spec); two new shared skills; `scripts/check-wiki.py` shipped + flipped to `--strict`; wiki dogfood reshaped with `git mv` for blame |
 | 2026-04-21 | [v0.8.7](https://github.com/alexherrero/agentic-harness/releases/tag/v0.8.7) — GitHub Projects wiring + documenter end-to-end dogfood | `feat-gh-projects-integration` (pending — gated on offer-cycle observation); `feat-documenter-subagent` (this sweep is the dogfood) | 4 commits (`801dbd7..HEAD`), 23 files; new [ADR 0003](0003-ProjectsV2-Ownership-And-Linking), new [Feature page](GitHub-Projects-Integration) |
+
+## 2026-05-16 — v2.3.1: `/plan` external-review-handoff option (paired with toolkit v0.8.1)
+
+**Commit range:** `v2.3.0..v2.3.1` (1 commit on `main`). Release notes: [v2.3.1](https://github.com/alexherrero/agentic-harness/releases/tag/v2.3.1). Paired with [agent-toolkit v0.8.1](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.8.1).
+
+### What shipped
+
+Adds the external-review-handoff option to the harness's `/plan` phase. After the agent drafts `.harness/PLAN.md` (per the existing flow), the operator now has an alternative to inline iteration: hand off the drafted PLAN.md to Antigravity IDE for inline-comment review + Gemini-applies-comments revision, then resume in Claude Code with a diff-on-resume pass against a pre-handoff snapshot.
+
+The harness writes a pre-handoff snapshot at `.harness/PLAN.pre-handoff-<ts>.md`, generates a transfer-context file at `.harness/transfer/plan-<ts>.md` (using the toolkit-side template at `agent-toolkit/skills/design/templates/transfer-context.md` — `DOC_TYPE: plan` triggers harness-PLAN.md-specific guardrails), outputs a handoff prompt with explicit Antigravity steps, and pauses the phase. On resume (`/plan --resume-external-review` or natural "plan review complete"), the harness diffs the revised PLAN.md against the snapshot, reads Gemini's change-summary log at `.harness/PLAN.diff.md`, surfaces findings, asks Accept / Iterate / Discard.
+
+### Why this shape
+
+Dogfood-driven amendment from plan #6's first real design exercise (MemoryVault, 2026-05-15). The 6-chunk inline walk of a ~7200-word design surfaced a real UX gap: Claude Code's block-by-block review pattern works but tires fast on long content. Antigravity IDE has a native inline-comment UI + Gemini AI integration that handles bulk-apply of comments dramatically better.
+
+The harness `/plan` phase faces the same pattern when drafting plans for substantial scope (the MemoryVault-style plans with many tasks + thick locked-design-calls sections). Mirroring the option from toolkit `/design` skill v0.8.1 means operators have the same workflow available in both surfaces with the same mechanics — shared transfer-context template, shared workflow shape, shared cleanup discipline. One mental model, two skill surfaces.
+
+The split between toolkit (template + design-skill option) and harness (`/plan` option) follows the customization-vs-phase pattern from agentic-harness ADR 0006: customizations live in toolkit; phase-gated workflow lives in harness; the two integrate via shared template + shared workflow contract.
+
+### Doesn't do
+
+- Doesn't change adapter wrappers (canonical-reference inheritance — adapters point at phase specs).
+- Doesn't require any script changes, manifest changes, or installer changes. Implementation lives entirely in phase spec documentation; the agent executes the documented flow.
+- Doesn't change the inline-review path. The inline iteration path stays default; external-review is opt-in per session.
+- Doesn't ship cleanup automation for `.harness/transfer/` — that's manual until MemoryVault's idle-time hook (plan #7a) lands, at which point the same 30-day GC pass handles transfer artifacts alongside crash-recovery markers.
+
+### Tracked as
+
+This patch ships a single new option in the `/plan` phase; not flagged in `features.json` (features.json tracks net-new user-visible features; this is an alternative path for an existing feature).
+
+### Related
+
+- [agent-toolkit v0.8.1](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.8.1) — paired release; ships the same option in `/design author` + `/design translate` + the transfer-context template
+- [agent-toolkit ADR 0004 amendment (2026-05-16)](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/decisions/0004-design-skill.md#amendment--2026-05-16-v081-external-review-handoff-option) — shared design rationale + 4 load-bearing assumptions with re-audit triggers
+- [v2.3.1](https://github.com/alexherrero/agentic-harness/releases/tag/v2.3.1) — release notes, [CHANGELOG.md](https://github.com/alexherrero/agentic-harness/blob/main/CHANGELOG.md)
 
 ## 2026-05-15 — v2.3.0: `/release` + `/setup` integration for agent-toolkit's `/design` skill
 

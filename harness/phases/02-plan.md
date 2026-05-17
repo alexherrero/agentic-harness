@@ -101,6 +101,64 @@ Keep this section short. Most plans have 0–2 real risks; padding with generic 
 <Which deterministic gates apply. Any project-specific extras, e.g. "must manually test on iOS Safari.">
 ```
 
+### 4b. External-review handoff (optional, alternative to inline iteration — v2.3.1+)
+
+After writing the draft `.harness/PLAN.md`, the operator has an alternative to iterating with the agent inline: hand off to an external editor (typically Antigravity IDE with Gemini) for review + revision. Useful when the plan is long or the operator prefers Antigravity's native inline-comment UI for thinking through changes.
+
+**When to offer this option**: after `.harness/PLAN.md` is written + before declaring "done" with the planning phase, ask:
+
+> "Plan is drafted. Iterate inline (review tasks together here), or hand off for external review in Antigravity?"
+
+**On "hand off for external review"**:
+
+1. **Write pre-handoff snapshot** at `.harness/PLAN.pre-handoff-<YYYYMMDDhhmmss>.md` — full copy of the drafted PLAN.md as it stands when the operator picks "Hand off". Used on resume to diff against the externally-revised version.
+
+2. **Generate transfer-context file** at `.harness/transfer/plan-<YYYYMMDDhhmmss>.md`. Uses the template at `agent-toolkit/skills/design/templates/transfer-context.md` (the toolkit-side template — shared across `/design` skill + harness `/plan` for handoff consistency). Fill placeholders:
+
+   - `DOC_TITLE` = PLAN.md's title
+   - `DOC_TYPE` = `plan`
+   - `OPERATOR_INTENT_PARAGRAPH` = lift from the brief + Goal sections
+   - `RECENT_DECISIONS_BULLETS` = the plan's `## Locked design calls` section (if present) + the most recent `.harness/progress.md` entry's noted decisions
+   - `INLINED-CONVENTIONS-dev-flow` = static expansion (paragraph-long Status:[x] narratives / ✅⬜ charts / link blocks / wake-on-CI / NEVER append Co-Authored-By trailer / etc.)
+   - `INLINED-GUARDRAILS-FOR-plan` = harness PLAN.md shape per `templates/PLAN.md`; Status lifecycle `draft → in-progress → done` (don't transition; only `/work` + `/release` do); paragraph-long Status:[x] narratives required; Locked design calls section at the bottom is load-bearing.
+
+3. **Output handoff prompt** to the operator:
+
+   ```
+   External-review handoff ready. Take to Antigravity:
+
+     1. Open .harness/PLAN.md
+     2. Open .harness/transfer/plan-<ts>.md  (transfer context)
+     3. Add inline comments using Antigravity's native comment UI wherever
+        you want changes — task list refinement, verification specifics,
+        scope adjustments, etc. The transfer context tells Gemini what
+        conventions to honor + what's locked.
+     4. When done commenting, ask Gemini: "apply my comments per the
+        transfer context". Gemini revises the PLAN.md + writes a
+        change-summary log at .harness/PLAN.diff.md.
+     5. Return to Claude Code and say "plan review complete" (or run
+        `/plan --resume-external-review`). Claude will diff against the
+        pre-handoff snapshot and surface findings.
+
+   Pre-handoff snapshot saved at .harness/PLAN.pre-handoff-<ts>.md.
+   ```
+
+4. **Pause the phase** — return control to the operator. The PLAN.md's Status is unchanged (still `draft`). Resume happens on the operator's next invocation.
+
+**Resume flow** (`/plan --resume-external-review` or natural language "plan review complete"):
+
+1. Verify expected files exist (revised PLAN.md + `.harness/PLAN.diff.md` + pre-handoff snapshot). If any missing, refuse with a clear error.
+2. **Diff revised PLAN.md against pre-handoff snapshot** — read both + present unified diff. Highlight: task list changes; verification spec changes; any modifications to the `## Locked design calls` section.
+3. **Read the change-summary log** — surface Gemini's per-comment narrative + the "Suggestions" section (adjacent issues Gemini noticed but didn't apply).
+4. **Ask the operator**: `"Accept all changes / iterate further (another external pass) / discard the handoff entirely?"`.
+   - **Accept**: clean up snapshot + transfer-context files (move to `.harness/transfer/_archive/` for audit trail; can be GC'd at 30 days). Continue to step 5 (features.json) + step 8 (Stop).
+   - **Iterate**: regenerate transfer-context with updated "Recent decisions to honor" (including what was applied in the previous round); re-run handoff.
+   - **Discard**: restore from pre-handoff snapshot; PLAN.md returns to its pre-handoff state; archive the failed handoff for audit; continue inline.
+
+**Why this design**: leans on Antigravity-native primitives (inline-comment UI + Gemini-applies pattern) for the review-and-revise loop on long plans. Same mechanics as toolkit `/design` skill's external-review handoff — shared template, shared workflow shape, shared cleanup discipline. See [toolkit ADR 0004 amendment (2026-05-16)](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/decisions/0004-design-skill.md) for the design rationale.
+
+**Cross-host scope**: shipped in v2.3.1 paired with toolkit v0.8.1. The handoff target (Antigravity-Gemini) is one of the two supported hosts post-ROADMAP-item-#15 (Gemini-CLI host removal); the other supported host (Claude Code) is where the inline alternative lives.
+
 ### 5. Also update `features.json` if appropriate
 
 If the plan introduces net-new user-visible features (as opposed to internal refactors), add entries to `.harness/features.json`:
