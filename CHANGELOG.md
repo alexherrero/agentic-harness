@@ -5,11 +5,11 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [v2.5.0] — 2026-05-20 — Local-only embeddings (paired with toolkit v0.10.0)
+## [v2.4.1] — 2026-05-20 — Local-only embeddings (paired with toolkit v0.9.2)
 
-Minor — embedding-mode collapse paired with [`agent-toolkit v0.10.0`](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.10.0). **Drops the Voyage/Anthropic API embedding mode from the toolkit's memory skill; local `sentence-transformers` is now the only production mode.** Default model upgraded `all-MiniLM-L6-v2` → `BAAI/bge-large-en-v1.5` (1024-d native; ~1.3GB on disk + ~1.5GB RAM at runtime; PyTorch MPS on Apple Silicon for acceleration).
+Patch — embedding-mode collapse paired with [`agent-toolkit v0.9.2`](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.9.2). **Drops the Voyage/Anthropic API embedding mode from the toolkit's memory skill; local `sentence-transformers` is now the only production mode.** Default model upgraded `all-MiniLM-L6-v2` → `BAAI/bge-large-en-v1.5` (1024-d native; ~1.3GB on disk + ~1.5GB RAM at runtime; PyTorch MPS on Apple Silicon for acceleration).
 
-Harness-side changes for this release pair are **doc-only** per the paired-release-as-documentation pattern established in v2.4.0. The harness hasn't owned customizations since the v2.0.0 split (when `dependabot-fixer` + `ship-release` migrated to `agent-toolkit`); the embedding-mode refactor happens entirely on the toolkit side. The harness's role in plan #18 is acknowledging the v0.10.0 toolkit shape in its docs + framing the paired release.
+Harness-side changes for this release pair are **doc-only** per the paired-release-as-documentation pattern established in v2.4.0. The harness hasn't owned customizations since the v2.0.0 split (when `dependabot-fixer` + `ship-release` migrated to `agent-toolkit`); the embedding-mode refactor happens entirely on the toolkit side. The harness's role in plan #18 is acknowledging the v0.9.2 toolkit shape in its docs + framing the paired release.
 
 Triggered by [ROADMAP item #18](https://github.com/alexherrero/agentic-harness/blob/main/.harness/ROADMAP.md) (added 2026-05-20 mid-flight of plan #7a part 5 / seed-pass; task 6 of seed-pass needed a worthwhile embedding model for sample-recall validation, which forced the embed-refactor work first). Implemented as plan #18 (7 tasks; this release pair is task 7). Decision rationale lives in [toolkit-side ADR 0001's 2026-05-20 amendment](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/decisions/0001-agent-toolkit-purpose.md#amendment-2026-05-20) — no new harness-side ADR (the embedding-mode decision is a toolkit-side concern; harness inherits via its dependency on toolkit customizations).
 
@@ -19,7 +19,7 @@ After this release pair ships, plan #7a part 5 (seed-pass) resumes at task 6 (va
 
 ### Added
 
-- **`wiki/reference/Completed-Features.md`** v2.5.0 overview row + full narrative section (What shipped / Why this shape / Doesn't do / Tracked as / Related — mirrors v2.4.0 format).
+- **`wiki/reference/Completed-Features.md`** v2.4.1 overview row + full narrative section (What shipped / Why this shape / Doesn't do / Tracked as / Related — mirrors v2.4.0 format).
 
 ### Changed
 
