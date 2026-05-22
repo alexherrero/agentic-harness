@@ -59,6 +59,27 @@ Determine:
 Show this to the user in one line before invoking the reviewer:
 > "Reviewing: task N '<title>'. Artifact: <sha1>..<sha2> (<N files, ±lines>)."
 
+### 2b. Auto-recall MemoryVault conventions (graceful-skip if not installed)
+
+If MemoryVault is installed (`MEMORY_VAULT_PATH` env set + directory exists), load operator-global conventions before invoking the reviewers. Conventions ground the critique — a critic that knows the operator prefers stdlib-only over third-party deps will flag a new dependency import; one that doesn't will let it slide.
+
+```bash
+python3 scripts/harness_memory.py recall --phase review --permanent-only
+```
+
+What this loads (per `_PHASE_PROJECT_DIRS["review"]` in `harness_memory.py`):
+- `personal-private/_always-load/*.md` only. **No per-project entries** — the reviewer's job is to critique against operator-wide conventions, not project-internal context (the implementer already had that in `/work`).
+
+Budget defaults to 4k tokens (override via `HARNESS_RECALL_BUDGET_REVIEW` env). The `--permanent-only` flag is belt-and-suspenders — review never touches ephemeral surfaces by definition, but the flag makes it explicit so any future _always-load drift toward ephemeral subdirs gets caught.
+
+**No `offer-save` step in `/review`.** Per ROADMAP #8 design table + Q5 locked design call: the reviewer is read-only on MemoryVault. Save discipline runs in `/work` (§7b/§7c) and `/release` (per task 7 of plan #8) where surfaced patterns are anchored to actual implementation rather than a critique pass. This is non-negotiable — a reviewer that writes is a reviewer that biases toward confirming its own findings.
+
+**Graceful-skip conditions** (silent):
+- `MEMORY_VAULT_PATH` env unset or directory missing.
+- `scripts/harness_memory.py available` exits 1.
+
+See [ADR 0009](../../wiki/explanation/decisions/0009-auto-context-into-harness-phases.md) for the read-only-review rationale.
+
 ### 3. Dispatch the reviewers
 
 The phase runs **two reviewers in sequence** — cross-model first, in-process second — to escape the same-model echo chamber.
