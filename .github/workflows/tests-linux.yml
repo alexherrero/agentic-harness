@@ -43,6 +43,8 @@ jobs:
         run: python3 scripts/check-wiki.py --strict
       - name: Unit tests — vault_project.py
         run: python3 scripts/test_vault_project.py
+      - name: Unit tests — harness_memory.py
+        run: python3 scripts/test_harness_memory.py
 
   syntax:
     name: syntax

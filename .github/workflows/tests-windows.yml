@@ -37,3 +37,5 @@ jobs:
         run: bash scripts/check-no-pii.sh --all
       - name: Unit tests — vault_project.py
         run: python scripts/test_vault_project.py
+      - name: Unit tests — harness_memory.py
+        run: python scripts/test_harness_memory.py
