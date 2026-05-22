@@ -127,7 +127,7 @@ class TestReadVaultProject(unittest.TestCase):
         self.assertEqual(vp.read_vault_project(self.root), "agentic-harness")
 
     def test_git_origin_fallback_ssh(self) -> None:
-        _init_git_repo(self.root, "git@github.com:alexherrero/agentic-harness.git")
+        _init_git_repo(self.root, "git@example.com:alexherrero/agentic-harness.git")
         self.assertEqual(vp.read_vault_project(self.root), "agentic-harness")
 
     def test_git_origin_with_partial_project_json(self) -> None:
@@ -235,19 +235,19 @@ class TestSlugFromOriginUrl(unittest.TestCase):
 
     def test_ssh_form(self) -> None:
         self.assertEqual(
-            vp._slug_from_origin_url("git@github.com:alexherrero/agentic-harness.git"),
+            vp._slug_from_origin_url("git@example.com:alexherrero/agentic-harness.git"),
             "agentic-harness",
         )
 
     def test_ssh_protocol_form(self) -> None:
         self.assertEqual(
-            vp._slug_from_origin_url("ssh://git@github.com/alexherrero/agentic-harness.git"),
+            vp._slug_from_origin_url("ssh://git@example.com/alexherrero/agentic-harness.git"),
             "agentic-harness",
         )
 
     def test_file_protocol(self) -> None:
         self.assertEqual(
-            vp._slug_from_origin_url("file:///home/alex/agentic-harness.git"),
+            vp._slug_from_origin_url("file:///srv/git/agentic-harness.git"),
             "agentic-harness",
         )
 

@@ -151,11 +151,11 @@ def _slug_from_origin_url(url: str) -> Optional[str]:
     """Extract repo slug from a git origin URL.
 
     Handles:
-      - https://github.com/owner/repo.git
-      - https://github.com/owner/repo
-      - git@github.com:owner/repo.git
-      - ssh://git@github.com/owner/repo.git
-      - file:///abs/path/to/repo
+      - HTTPS form: ``https://<host>/owner/repo.git``
+      - HTTPS without .git suffix
+      - SCP/SSH form: ``user@<host>:owner/repo.git``
+      - ssh:// protocol form
+      - file:// protocol form for local clones
     """
     if not url:
         return None
