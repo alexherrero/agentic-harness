@@ -35,3 +35,5 @@ jobs:
       - name: Run check-no-pii.sh
         shell: bash
         run: bash scripts/check-no-pii.sh --all
+      - name: Unit tests — vault_project.py
+        run: python scripts/test_vault_project.py
