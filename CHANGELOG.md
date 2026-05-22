@@ -5,6 +5,33 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.4.2] — 2026-05-22 — MemoryVault Discovery + Mining (paired with toolkit v0.10.0)
+
+Patch — second MemoryVault roadmap item closes. Paired with [`agent-toolkit v0.10.0`](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.10.0) which ships the substantive feature set: five new `/memory` sub-commands (`/memory index-skills` + `/memory reflect corpus` + `/memory discover-skills` + `/memory adapt-skills` + `/memory watchlist`) that turn the vault from a static curated store into a living surface.
+
+Harness-side changes for this release pair are **doc-only** per the paired-release-as-documentation pattern established in v2.4.0 + v2.4.1. The harness hasn't owned customizations since the v2.0.0 split; discovery + mining lives entirely on the toolkit side. The harness's role in plan #7b is closing out the active plan + moving ROADMAP item #7b to Completed.
+
+Triggered by [ROADMAP item #7b](https://github.com/alexherrero/agentic-harness/blob/main/.harness/ROADMAP.md) which had been queued from plan #7a's design-skill output (plan #6 dogfood). Implemented as plan #7b (7 tasks across 8 toolkit commits). Decision rationale + 7 locked design calls live in [toolkit-side ADR 0007 — MemoryVault Discovery + Mining](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/decisions/0007-memoryvault-discovery.md) — no new harness-side ADR (discovery + mining is a toolkit-side concern; harness inherits via its toolkit-customization dependency).
+
+**Why this matters for harness users**: the harness itself is unchanged. Operators who installed the memory skill via the toolkit gain five new `/memory` sub-commands on next install. The personal-skills indexer auto-runs from `bash agent-toolkit/install.sh ~/their-project` (against the toolkit's own `skills/` + sibling `agentic-harness/.claude/skills/`); the cadence-checked skill-discovery scan auto-fires from the existing `memory-reflect-idle` hook (no operator action required); the adapt-don't-import workflow + watchlist review are operator-invoked when ready. **Adapt-don't-import is architecturally enforced** — the `adapt-evaluator` sub-agent's write allowlist physically prevents auto-fork into `agent-toolkit/skills/`; the operator's manual authoring step is the only path to a real skill.
+
+After this release pair ships, ROADMAP item #7b moves to Completed; the next ROADMAP item per the locked execution order is **#13 diataxis-author skill** (with smaller items #19-#22 queued in parallel: Ideas.md format redesign, transfer-context × AgentMemory integration, harness self-audit skill, cross-surface AgentMemory protocol).
+
+### Added
+
+- **`.harness/PLAN.archive.20260522-memoryvault-discovery-mining.md`** — archived plan #7b PLAN.md with 7/7 tasks `[x]` + full per-task narrative.
+- **Completed-Features.md row** for plan #7b — overview entry + dated section narrative.
+
+### Changed
+
+- **`.harness/ROADMAP.md`** — item #7b moved from active table to the Completed section with full narrative (releases shipped + what shipped end-to-end + notable patterns established + deferred items).
+- **`.harness/PLAN.md`** — promoted from queued-plans/ to active for the next roadmap item per the established `/release` lifecycle hook pattern.
+
+### Internal
+
+- **Plan close-out pattern**: plan #7b followed the same shape as plan #7a (5 substantive code tasks + 2 batch tasks for docs + release); pre-authorized autonomous-batch execution mode for tasks 5+6+7 (decided during task 1 close-out) saved 2 approval cycles for ~30% of remaining scope.
+- **Per-task narratives** captured in `.harness/progress.md` between 2026-05-21 and 2026-05-22, one entry per task close-out + one end-of-plan summary.
+
 ## [v2.4.1] — 2026-05-20 — Local-only embeddings (paired with toolkit v0.9.2)
 
 Patch — embedding-mode collapse paired with [`agent-toolkit v0.9.2`](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.9.2). **Drops the Voyage/Anthropic API embedding mode from the toolkit's memory skill; local `sentence-transformers` is now the only production mode.** Default model upgraded `all-MiniLM-L6-v2` → `BAAI/bge-large-en-v1.5` (1024-d native; ~1.3GB on disk + ~1.5GB RAM at runtime; PyTorch MPS on Apple Silicon for acceleration).
