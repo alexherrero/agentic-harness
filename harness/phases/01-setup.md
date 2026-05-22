@@ -24,6 +24,35 @@ Read:
 - `.harness/init.sh` — is it still a template?
 - Any existing `CLAUDE.md` / `AGENTS.md` / `.cursorrules` / `GEMINI.md` — what conventions are already documented?
 
+### 1b. Auto-recall MemoryVault conventions (graceful-skip if not installed)
+
+If MemoryVault is installed (`MEMORY_VAULT_PATH` env set + directory exists), load operator-global conventions before the interview so they inform what the harness asks. If absent, this step is a silent no-op.
+
+```bash
+# Resolve the vault_project slug (explicit field > github.repo basename > git origin):
+SLUG=$(python3 scripts/vault_project.py read . 2>/dev/null || true)
+
+# Load _always-load/ conventions (silently exits 0 with empty output if vault absent):
+python3 scripts/harness_memory.py recall --phase setup --project "${SLUG:-}"
+```
+
+Surface the recall output in the working context (the markdown stream is a prefix budget; agent reads it like any other prompt input). Use the conventions to inform the interview (§2) — e.g. if `_always-load/coding-style.md` says "stdlib-only for shell helpers", the harness skips asking about external-tool preferences for `init.sh`.
+
+**vault_project field write.** After §2's interview confirms (or auto-detects) the slug, persist it to `.harness/project.json` so later phases don't re-derive:
+
+```bash
+python3 scripts/vault_project.py write "<resolved-slug>" .
+```
+
+The 3-tier fallback (explicit field > `github.repo` basename > git origin → strip `.git` → basename) means the field is usually a 1-time write; subsequent re-invocations just confirm.
+
+**Graceful-skip conditions** (silent — no error, no prompt):
+- `MEMORY_VAULT_PATH` env unset or directory missing.
+- `scripts/harness_memory.py available` exits 1.
+- The `agent-toolkit/skills/memory/` install is missing (toolkit-absent path): recall still returns empty; the rest of `/setup` continues unchanged.
+
+This step lands per plan #8 task 3 (auto-context-into-harness-phases). See [ROADMAP #8](../../.harness/ROADMAP.md) + [ADR 0009](../../wiki/explanation/decisions/0009-auto-context-into-harness-phases.md) (the ADR lands in task 9 of the same plan).
+
 ### 2. Interview, briefly
 
 Confirm or fill in what the inventory didn't settle:
@@ -159,6 +188,49 @@ gh api graphql -f query='query{repository(owner:"<owner>",name:"<repo>"){project
 - `gh` missing required scopes (`project` + `read:project`) — print the fix-up line (`gh auth refresh -s project,read:project`) and move on; user can rerun `/setup` after.
 
 Default behavior: **skip entirely**. The file stays absent until the user opts in, which is valid. All per-phase Projects wiring silently no-ops when `.harness/project.json` is missing.
+
+### 8b. Auto-save project index stub to MemoryVault (graceful-skip if not installed)
+
+If `harness_memory.py available` exits 0, offer to write a `personal-projects/<slug>/_index.md` stub so later phases (`/plan`, `/work`, `/release`, `/bugfix`) have an anchor to read from.
+
+Build a short stub locally (in `/tmp/` or any temp dir):
+
+```markdown
+# <project-name> — index
+
+**Stack:** <detected from §2>
+**Conventions:** <commit-style + lint/test commands from §5>
+**Current state:** fresh setup (no plans yet)
+
+## Decisions logged so far
+(populated by `/plan` + `/release` offer-save calls)
+
+## Open questions
+(populated by `/plan` offer-save calls)
+```
+
+Dispatch:
+
+```bash
+python3 scripts/harness_memory.py offer-save \
+    --phase setup --project "<slug>" \
+    --kind project-index --slug "_index" \
+    --content-file /tmp/setup-index-stub.md \
+    --confidence 0.85 \
+    --confidence-reason "freshly-confirmed project metadata from setup interview"
+```
+
+**Confidence rubric** (per ADR 0009 — lands in plan #8 task 9):
+- **High (≥0.85)** when `vault_project` is an explicit field in `.harness/project.json` (operator deliberately set it).
+- **Medium (0.7)** when slug was derived from `github.repo` (operator linked the repo to GH Projects, signaling intent).
+- **Low (0.5)** when slug was auto-detected from git origin (no operator signal beyond having a remote).
+
+Per the self-modulating ask contract (Q4 locked design call), confidence ≥ `HARNESS_AUTO_SAVE_CONFIDENCE_THRESHOLD` (default 0.8) saves silently with a `[auto-saved high-confidence]` stderr notice; below threshold fires the preview-and-ask prompt.
+
+**Graceful-skip conditions** (silent):
+- `harness_memory.py available` exits 1.
+- `HARNESS_AUTO_SAVE_MODE=off`.
+- The toolkit-side `save.py` is absent (treated as no-op with stderr notice; spec continues).
 
 ### 9. Log and stop
 
