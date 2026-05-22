@@ -5,6 +5,52 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.5.0] — 2026-05-22 — Auto-context into harness phases (paired with toolkit v0.11.1)
+
+Minor — **first non-doc-only paired pair** in the recent run (after v2.4.0/v2.4.1/v2.4.2/v2.4.3 all doc-only on this side). Harness ships real new phase behavior: every phase command (`/setup`, `/plan`, `/work`, `/review`, `/release`, `/bugfix`) now auto-invokes MemoryVault at predictable boundaries without the agent or operator having to remember to call `/memory search` or `/memory save`. Paired with [`agent-toolkit v0.11.1`](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.11.1) which ships the toolkit-side companion documentation (`Cross-Repo-Memory-Protocol.md`).
+
+**What changes for operators**:
+- With `MEMORY_VAULT_PATH` set + `agent-toolkit/skills/memory/` sibling-cloned: every phase auto-loads operator conventions + project-specific decisions + open-questions / known-issues (per phase) at its start; phases that surface durable items offer to save them at the end (self-modulating ask — high-confidence saves silently with stderr notice; low-confidence prompts).
+- Without those prerequisites: **zero behavior change**. Every phase graceful-skips silently. Harness runs unchanged on systems where MemoryVault isn't adopted.
+
+Triggered by [ROADMAP item #8](https://github.com/alexherrero/agentic-harness/blob/main/.harness/ROADMAP.md). Decision rationale + 5 locked design calls (Q1–Q5) + 4 load-bearing assumptions in new [ADR 0007 — Auto-context into harness phases](wiki/explanation/decisions/0007-auto-context-into-harness-phases.md). Operator-facing how-to at [Use Auto-Context In Harness Phases](wiki/how-to/Use-Auto-Context-In-Harness-Phases.md).
+
+### Added
+
+- **`scripts/harness_memory.py`** (~520 lines, stdlib-only) — dispatcher with 4 sub-commands:
+  - `recall --phase <P> --project <S>` — phase-scoped recall (loads `_always-load/` conventions + per-phase `personal-projects/<slug>/` subdirs per `_PHASE_PROJECT_DIRS` mapping); per-phase token cap via `HARNESS_RECALL_BUDGET_<PHASE>` env.
+  - `offer-save --phase --project --kind --slug --content-file [--confidence] [--confidence-reason]` — self-modulating ask: `confidence ≥ HARNESS_AUTO_SAVE_CONFIDENCE_THRESHOLD` (default 0.8) silent-saves with `[auto-saved high-confidence]` stderr; below threshold prompts. `HARNESS_AUTO_SAVE_MODE` (ask/silent/off) outer envelope.
+  - `plan-done-promotion --project-root . [--dry-run]` — cursor-tracked progress.md tail-scan via `.harness/.promoted-progress-cursor`. Shared between `/work` plan-done + `/release` triggers — single fire per plan-window.
+  - `available` — exit 0/1 short-circuit for phase specs.
+  - **3-tier toolkit discovery** (`HARNESS_MEMORY_TOOLKIT_PATH` env > sibling-clone > `~/Antigravity/agent-toolkit/`). Toolkit-absent path graceful-skips with stderr notice.
+- **`scripts/vault_project.py`** (~200 lines, stdlib-only) — `read_vault_project()` with 3-tier fallback (explicit field > `github.repo` basename > git origin); `write_vault_project()` atomic merge-preserving. CLI wrapper.
+- **33 unit tests** for `harness_memory.py` (`scripts/test_harness_memory.py`) across 7 classes — `TestAvailable` / `TestRecall` / `TestOfferSaveDecision` (pure logic) / `TestOfferSaveBehavior` (end-to-end with toolkit stub) / `TestOfferSaveToolkitAbsent` / `TestPlanDonePromotion` / `TestCLI`.
+- **28 unit tests** for `vault_project.py` (`scripts/test_vault_project.py`) across 4 classes — read tier-1/2/3/none paths, atomic write merge-preserve + round-trip, URL-shape variety (https/ssh/file/no-.git), CLI exit codes.
+- **CI step** added to all 3 OS workflows — `python3 scripts/test_vault_project.py` + `python3 scripts/test_harness_memory.py`. 61 total new test cases.
+- **New [ADR 0007 — Auto-context into harness phases](wiki/explanation/decisions/0007-auto-context-into-harness-phases.md)** — full Status/Context/Decision-Q1-Q5/Consequences/Related shape matching toolkit ADRs 0007/0008. 5 design calls + 4 load-bearing assumptions with re-audit triggers.
+- **New [how-to/Use-Auto-Context-In-Harness-Phases](wiki/how-to/Use-Auto-Context-In-Harness-Phases.md)** — per-phase boundary table + dispatcher CLI reference + 5-env-var matrix + 3 worked scenarios (offer-save fatigue tuning / recall budget tight / plan-done-promotion cursor confirmation) + 8 troubleshooting table rows. Length-justified inline.
+- **`wiki/reference/Completed-Features.md`** v2.5.0 row.
+- **Home.md + _Sidebar.md** references to new how-to + ADR.
+
+### Changed
+
+- **All 6 canonical phase/pipeline specs amended** via sub-letter convention (preserves integer §-numbers — incoming wiki refs that cite "§N" stay valid):
+  - `harness/phases/01-setup.md` — new §1b (Auto-recall conventions + vault_project write) + §8b (Project index stub offer-save).
+  - `harness/phases/02-plan.md` — new §1b (Auto-recall decisions + open-questions) + §4c (Open-questions offer-save).
+  - `harness/phases/03-work.md` — new §1b (Auto-recall task-relevant decisions + known-issues) + §7b (Remember-this offer-save, 3-kind taxonomy decision/gotcha/workflow) + §7c (Plan-done-promotion on final task flip).
+  - `harness/phases/04-review.md` — new §2b (Recall-only conventions — read-only by design; "a reviewer that writes biases toward confirming its own findings").
+  - `harness/phases/05-release.md` — new §1c (Auto-recall decisions for changelog framing) + §5b (Decisions offer-save after CHANGELOG draft) + §5c (Progress.md tail-scan via plan-done-promotion — shared cursor with `/work` §7c).
+  - `harness/pipelines/bugfix.md` — new §2b (Auto-recall known-issues at Analyze) + §4b (Gotcha offer-save at Verify; cap at 1 per /bugfix; ADR write operator-controlled not auto).
+- **4 wiki line-range anchors updated** in `wiki/explanation/GitHub-Projects-Integration.md` + `wiki/explanation/decisions/0003-ProjectsV2-Ownership-And-Linking.md` for the line-position shifts (sub-letter pattern keeps §-numbers stable; only line ranges move).
+
+### Internal
+
+- **10 commits across plan #8** on this side, then this v2.5.0 release commit: `9ccc020` + `34d21e9` (vault_project helper + PII scrub) + `17b2061` (harness_memory dispatcher) + `aebf189` (01-setup) + `44d0ba1` (02-plan) + `b3f653b` (03-work) + `3a9fb32` (04-review) + `ddfb5c0` (05-release) + `d134c5a` (bugfix.md) + `132a42e` (docs pass: ADR 0007 + how-to + Completed-Features + 11 ADR-number fixes). Toolkit side: 1 commit (`9176bc2` Cross-Repo-Memory-Protocol.md + Home.md ref).
+- **5 design calls locked at /plan time** (Q1–Q5 per ADR 0007): per-phase budget envs / vault_project 3-tier auto-detect / silent graceful-skip / self-modulating ask with confidence threshold / dual-trigger cursor-tracked promotion.
+- **Operator clarifications mid-plan**: Q4 revised from flat "ask" default to **self-modulating ask** (agent confidence threshold gates silent-vs-prompt); Q5 revised from "release-only trigger" to **dual-trigger middle ground** (plan-done AND release; shared cursor). Both revisions baked into dispatcher implementation + spec amendments + ADR 0007.
+- **ADR-number correction**: PLAN.md task 9 said ADR 0009 (conflated with toolkit numbering); harness ADRs go 0001–0006 so the new ADR landed as 0007. 11 inbound refs across the 6 amended spec files updated in task 9's docs commit.
+- **PII scanner false-positive caught mid-plan** (task 1 commit `9ccc020`): canonical `git@github.com` SSH form + `/home/alex/` file:// URL in test fixtures flagged as PII; scrubbed to `git@example.com` + `/srv/git/` placeholders in `34d21e9`.
+
 ## [v2.4.3] — 2026-05-22 — diataxis-author skill (paired with toolkit v0.11.0)
 
 Patch — paired-doc-only release pairing with [`agent-toolkit v0.11.0`](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.11.0). Substantive change ships entirely on the toolkit side: new `diataxis-author` skill with 5 sub-commands (`/diataxis author` + `check` + `repair` + `migrate` + `classify`) covering the full Diátaxis-wiki lifecycle. Subsumes harness's `migrate-to-diataxis` predecessor (deprecated 2026-05-22 in commit `d4d4adf`; predecessor file removal in a follow-up harness PATCH after dogfood). **4th consecutive paired-release-as-documentation pair** (after v2.4.0/v2.4.1/v2.4.2).
