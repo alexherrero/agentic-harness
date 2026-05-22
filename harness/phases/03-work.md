@@ -29,6 +29,28 @@ The `/work` phase exists to keep implementation single-threaded and coherent. Fr
 - Read `progress.md` — was a previous `/work` session interrupted? If so, confirm whether to resume or restart.
 - Read `AGENTS.md` + `CLAUDE.md` for conventions (commit style, test runner, formatting).
 
+### 1b. Auto-recall MemoryVault context (graceful-skip if not installed)
+
+If MemoryVault is installed (`MEMORY_VAULT_PATH` env set + directory exists), load task-relevant context before confirming scope. Decisions previously made on this project's surface area inform implementation; known-issues surface "we've hit this before" patterns.
+
+```bash
+SLUG=$(python3 scripts/vault_project.py read . 2>/dev/null || true)
+python3 scripts/harness_memory.py recall --phase work --project "${SLUG:-}"
+```
+
+What this loads (per `_PHASE_PROJECT_DIRS["work"]` in `harness_memory.py`):
+- `personal-private/_always-load/*.md` — operator-global conventions.
+- `personal-projects/<slug>/decisions/*.md` — settled calls relevant to this codebase.
+- `personal-projects/<slug>/known-issues/*.md` — gotchas + recurring root causes (the "I've fixed this CRLF issue three times" pattern).
+
+Budget defaults to 6k tokens (override via `HARNESS_RECALL_BUDGET_WORK` env); cap is 5 entries. Surface the recall output in the working context before §2 confirms scope. If a known-issue matches the task's domain, factor it into the confirmation prompt — operator may want to widen scope.
+
+**Graceful-skip conditions** (silent):
+- `MEMORY_VAULT_PATH` env unset or directory missing.
+- `scripts/harness_memory.py available` exits 1.
+
+See [ADR 0009](../../wiki/explanation/decisions/0009-auto-context-into-harness-phases.md) for the design rationale.
+
 ### 2. Confirm scope
 
 Before writing any code, state the task to the user in one sentence and confirm:
@@ -80,6 +102,67 @@ Once all gates are green:
   ```
   <YYYY-MM-DD HH:MM> /work — completed task N: "<title>" (<filesChanged> files, <testsAdded> tests added)
   ```
+
+### 7b. Offer-save "remember this" candidates to MemoryVault (graceful-skip if not installed)
+
+If `harness_memory.py available` exits 0, scan the just-completed session for durable items worth promoting to MemoryVault. Candidates fall into three kinds:
+
+| Kind | Examples |
+|---|---|
+| `decision` | "we picked X over Y because Z"; "ADR-shaped rationale that fits in 2 paragraphs" |
+| `gotcha` | "Windows cp1252 stdout requires `sys.stdout.reconfigure(encoding='utf-8')`"; "git mv subprocess needs `-C <repo_root>` not cwd-relative path" |
+| `workflow` | "the pattern we settled on for X is Y"; reusable steps for a recurring task |
+
+For each candidate, build a short stub + offer it:
+
+```bash
+cat > /tmp/remember-<slug>.md <<EOF
+# <one-line title>
+
+<paragraph: what was decided/learned/observed, why it matters, conditions under
+which it applies>
+
+**Surfaced during:** task <N> of plan <name>
+EOF
+
+python3 scripts/harness_memory.py offer-save \
+    --phase work --project "<slug>" \
+    --kind <decision|gotcha|workflow> --slug "<date>-<short-slug>" \
+    --content-file /tmp/remember-<slug>.md \
+    --confidence <0.0-1.0> \
+    --confidence-reason "<one-line rationale>"
+```
+
+**Confidence rubric** (per ADR 0009 — lands in plan #8 task 9):
+- **High (≥0.85)** — direct decision/quote recorded *this session* AND matches an existing convention pattern in the vault (e.g. another `gotcha` entry confirms cross-platform Python flakiness, and the new one extends that pattern).
+- **Medium (0.7)** — direct quote/decision but first-of-its-kind in the vault (no existing pattern to anchor against).
+- **Low (0.5)** — inferred from session context (not explicitly stated by operator or in code) AND first-of-its-kind.
+
+Per the self-modulating ask contract (Q4), confidence ≥ `HARNESS_AUTO_SAVE_CONFIDENCE_THRESHOLD` (default 0.8) saves silently with a `[auto-saved high-confidence]` stderr notice; below threshold fires the preview-and-ask prompt. Non-TTY stdin defaults to skip.
+
+**Cap at ~3 candidates per `/work` session.** Over-firing is a failure mode — if you'd be proposing >3 saves, reconsider whether they're really durable or you're scope-creeping the offer-save into a journal-dumping exercise.
+
+**Graceful-skip conditions** (silent):
+- `harness_memory.py available` exits 1.
+- `HARNESS_AUTO_SAVE_MODE=off`.
+- No durable items surfaced — the cleanest case.
+
+### 7c. Plan-done-promotion (only when this task flipped PLAN.md to `Status: done`)
+
+If §7's PLAN.md edit just flipped `Status: in-progress → done` (this was the final unchecked `[x]`), invoke the progress.md tail-scan promotion:
+
+```bash
+python3 scripts/harness_memory.py plan-done-promotion --project-root .
+```
+
+Per the locked Q5 design call (dual-trigger middle ground): the dispatcher reads progress.md past the `.harness/.promoted-progress-cursor` byte offset, emits unpromoted entries, and advances the cursor. Idempotent — re-running within the same plan-window returns empty. The agent should then LLM-summarize the emitted tail into per-candidate offer-save calls (same machinery as §7b) — high-signal items like locked design calls + ADR-worthy decisions + cross-platform gotchas.
+
+`/release` (task 7 of plan #8) shares the same `plan-done-promotion` trigger via the cursor file — running here means `/release`'s tail-scan will be a no-op (cursor already advanced), and vice-versa. This avoids double-prompting at the end of a plan that also ships a release.
+
+**Graceful-skip conditions** (silent):
+- This task did NOT flip PLAN.md to `Status: done`.
+- `harness_memory.py available` exits 1.
+- progress.md absent OR cursor already at end-of-file (idempotent no-op).
 
 ### 8. Update the wiki (post-gates)
 
