@@ -85,6 +85,53 @@ Run these in order, short-circuit on failure:
 
 Commands come from `.harness/init.sh` / package scripts / Makefile — whatever the project uses. If a gate isn't configured, note it and skip, don't invent one.
 
+### 5b. Evidence-tracking (graceful-skip if not installed)
+
+If [`agent-toolkit`](https://github.com/alexherrero/agent-toolkit) is installed alongside the harness AND the `evidence-tracker` base hook is in place at `.claude/hooks/evidence-tracker.sh`, the harness enforces a **default-FAIL evidence contract** on every PLAN.md task: the agent must demonstrably *read* relevant spec/test/evidence files (via the `Read` tool) before a `Write`/`Edit` that flips the task's `[ ]` → `[x]` is allowed.
+
+The hook fires on `PreToolUse` for `Read|Write|Edit`:
+
+| Tool | Hook behavior |
+|---|---|
+| `Read` (file exists) | Records the path to `.harness/.evidence-reads` (per-session ephemeral state, gitignored). |
+| `Read` (file missing) | No-op (prevents fictitious-path bypass — agent can't claim to have read a non-existent file). |
+| `Write`/`Edit` on `.harness/PLAN.md` that flips `[ ]` → `[x]` | Resolves the task's evidence requirement; **blocks (exit 2)** if unmet, **allows (exit 0)** if met. |
+| `Write`/`Edit` not flipping a checkbox | Pass-through (exit 0). |
+| Any other tool | Pass-through (exit 0). |
+
+**Task-body conventions** (per task in `.harness/PLAN.md`):
+
+| Annotation | Behavior |
+|---|---|
+| *(none — default)* | **HEURISTIC** match. Any file under `tests/` or `spec/`, matching `*.spec.*` / `*.test.*` / `*_test.py` / `test_*.py` with a code extension (markdown excluded), OR any path that appears literally in the task's `**Verification:**` text. |
+| `**Evidence:** <glob-or-paths>` | **Per-task override.** Comma- or whitespace-separated patterns; supports globs (`tests/foo*.py`, `src/auth/*`, etc.). Only matching reads count. |
+| `**Evidence:** none — <rationale>` | **Explicit opt-out.** No reads required; flip always allowed. Use for genuinely docs-only tasks (ADRs, CHANGELOG entries, README updates). Operator acknowledges deliberately. |
+
+**When the hook blocks you**, stderr explains exactly which paths are expected. Three recovery paths:
+
+1. **Read a file that satisfies the requirement** (use the `Read` tool). Then retry the `[ ]` → `[x]` flip.
+2. **Add an opt-out annotation** to the task body in PLAN.md if it's genuinely docs-only:
+   ```markdown
+   ### 7. Append CHANGELOG entry for v1.2.0
+   - **What:** Add user-visible changes under the v1.2.0 header.
+   - **Evidence:** none — pure documentation; no code paths to verify.
+   - **Status:** [ ]
+   ```
+3. **Reset session state** if reads got out of sync (rare; usually means the hook was installed mid-session):
+   ```bash
+   python3 .claude/hooks/evidence_tracker.py --mode reset
+   ```
+
+**Graceful-skip conditions** (silent — no error, no prompt):
+- `agent-toolkit` not installed (hook absent from `.claude/hooks/`).
+- Python 3 not available on PATH.
+- Project root has no `.harness/` directory.
+- Tool input JSON is malformed (fail-open per Claude Code's PreToolUse contract).
+
+In all skip cases, the `[ ]` → `[x]` flip proceeds without enforcement — the harness continues to work the same way it always has. Operators upgrading harness without the toolkit see zero behavior change.
+
+This step lands per plan #9 (Evidence-tracking for `/work`). See [agent-toolkit ADR 0009 — Evidence-tracker hook](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/decisions/0009-evidence-tracker-hook.md) for the design rationale + 3 locked design calls Q1-Q3 (lands in plan #9 task 6).
+
 ### 6. Iterate on failures
 
 On gate failure:

@@ -21,6 +21,11 @@
 ### 1. <Task title>
 - **What:** <1-2 sentences describing the concrete change>
 - **Verification:** <executable check — a test to add, a command to run, a user flow to exercise>
+- **Evidence:** <OPTIONAL — only when agent-toolkit's evidence-tracker hook is installed.
+    Default behavior is heuristic match against `tests/` + `spec/` + `*.spec.*` /
+    `*.test.*` / `*_test.py` + paths named in `**Verification:**`. Use this field to
+    override (e.g. `**Evidence:** custom/path/*.md`) or to opt-out for docs-only
+    tasks (`**Evidence:** none — pure ADR write`). See `harness/phases/03-work.md` §5b.>
 - **Status:** [ ]
 
 ### 2. <Task title>
