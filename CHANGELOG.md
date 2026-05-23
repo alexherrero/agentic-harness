@@ -5,6 +5,34 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.6.1] — 2026-05-23 — quality-gates bundle (paired with toolkit v0.13.0)
+
+Patch — **paired-doc-only**. Substantive change ships entirely on the toolkit side: new [`quality-gates` bundle](https://github.com/alexherrero/agent-toolkit/blob/main/bundles/quality-gates/bundle.md) one-command-installs the 4 base operator-control + verification primitives most agentic-harness `/work` sessions want (`evaluator` sub-agent + `kill-switch` / `steer` / `commit-on-stop` / `evidence-tracker` hooks). 7th consecutive paired-release pair.
+
+**What changes for harness users**: operators who already had the 4 primitives installed individually see no behavior change — bundle install is functionally identical to per-primitive install (same `.claude/` paths; same `settings.json` registrations). The new affordance is **one-command adoption**:
+
+```bash
+bash agent-toolkit/install.sh <target-project> --bundle quality-gates
+```
+
+instead of 5 separate `--hook <name>` / `--agent evaluator` invocations. Closes the "I forgot to install commit-on-stop and lost an hour" failure mode that surfaced repeatedly in real-world dogfood.
+
+Triggered by [ROADMAP item #10](https://github.com/alexherrero/agentic-harness/blob/main/.harness/ROADMAP.md). Decision rationale + 2 locked design calls Q1-Q2 + 4 load-bearing assumptions in toolkit-side [ADR 0010 — quality-gates bundle](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/decisions/0010-quality-gates-bundle.md). Operator-facing how-to at [Use The Quality-Gates Bundle](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/how-to/Use-The-Quality-Gates-Bundle.md).
+
+### Added
+
+- **`wiki/reference/Completed-Features.md`** v2.6.1 row.
+
+### Changed
+
+- None. Harness phase specs unchanged; harness behavior unchanged.
+
+### Internal
+
+- **0 commits on this side** before the release commit — bundle is pure toolkit packaging. This v2.6.1 release commit is the only harness change.
+- **Notable from this plan**: operator-driven mid-plan pivot from COPY to sibling-reference (toolkit-side design call documented in ADR 0010). 2 cross-platform Python gotchas caught + fixed mid-plan in the toolkit installer (pwsh `Join-Path` doesn't `mkdir`; inline `python3 -c open()` uses cp1252 on Windows). Same family as prior plans' cross-platform-Python-gotcha pattern.
+- **Paired-release ordering**: toolkit v0.13.0 tagged first; this release URL-links to it per `[[coordinated-release-order]]`.
+
 ## [v2.6.0] — 2026-05-23 — Evidence-tracking for /work (paired with toolkit v0.12.0)
 
 Minor — second non-doc-only paired pair in the recent run (after v2.5.0). Harness ships the **`/work` §5b spec amendment** documenting the contract for the new `evidence-tracker` base hook in [`agent-toolkit v0.12.0`](https://github.com/alexherrero/agent-toolkit/releases/tag/v0.12.0). Default-FAIL evidence enforcement: every PLAN.md task starts with `evidence-met=false`; the agent must demonstrably READ relevant spec/test/evidence files before a `Write`/`Edit` that flips `[ ]` → `[x]` is allowed. Hook blocks otherwise.
