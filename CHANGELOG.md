@@ -5,6 +5,65 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.0.0] — 2026-05-24 — Agent M V3 close-out (paired with toolkit v1.0.0 — Cricket 1.0)
+
+Major — **Agent M V3 ships**. The harness version now matches the memory implementation V-versioning: V3 is the merged-Obsidian-and-GDrive vault with auto-recall in every harness phase + controlled write under the permeable A3 boundary + the full `/memory` skill surface on the Cricket side. Paired with [`agent-toolkit v1.0.0`](https://github.com/alexherrero/agent-toolkit/releases/tag/v1.0.0) which ships **Cricket 1.0** — the toolkit's 1.0 commitment to a stable public API surface.
+
+**What Agent M V3 is** (in operator-facing terms):
+
+- The system as a whole — this repo + Cricket + your AgentMemory vault folder, working together.
+- Markdown-and-frontmatter knowledge layer that lives in a folder your agent reads at every session start, can write to under controlled conditions, and that the harness's phase commands hook into at natural boundaries (`/setup` / `/plan` / `/work` / `/review` / `/release` / `/bugfix`).
+- Self-modulating offer-save (confidence-thresholded), cursor-tracked promotion, evidence-tracked task closeouts, quality-gates bundle for one-command install.
+
+**What V3 doesn't yet do** (deferred to V4, on its own roadmap):
+
+- Vectorized recall on top of markdown / dynamic retrieval during conversation
+- Conversational surface ("open a project file for M" / "list my active projects")
+- Multi-domain scope beyond dev (vacation planning, sourdough notebooks, workshop builds, research, learning)
+- Cross-surface protocol (Claude.ai / Gemini / Antigravity reading the same vault)
+- Vault-backed harness state (move `.harness/PLAN.md` + `progress.md` into the vault)
+- FRIDAY-style natural-extension surface
+
+V4 design space lives in `.harness/ROADMAP-AgentMemoryV4.md` (operator-local; `.harness/` is gitignored). Full V1→V4 evolution narrative in the new HLD on the Cricket side: [Agent Memory Evolution](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/designs/agent-memory-evolution.md).
+
+### What shipped across the V3 arc (v1.0.0 → v3.0.0)
+
+13 paired releases over ~12 days. Plan-by-plan rollup:
+
+| Plan | Theme | Versions |
+|---|---|---|
+| #0 | Codex-removal sweep | v1.0.0 |
+| #1 + #2 | agent-toolkit repo split + install scope | v2.0.0 + toolkit v0.5.0 |
+| #3 | Fresh-context evaluator sub-agent | v2.1.0 + toolkit v0.6.0 |
+| #4 + #5 | Base hooks: kill-switch + steer + commit-on-stop | v2.2.0 + toolkit v0.7.0 |
+| #6 | Design skill v1 | v2.3.0 + toolkit v0.8.0 |
+| (patch) | External-review-handoff option | v2.3.1 + toolkit v0.8.1 |
+| #15 | Gemini-CLI host removal | v2.4.0 + toolkit v0.9.0 |
+| #18 | Local-only embeddings + BGE-large default | v2.4.1 + toolkit v0.9.2 |
+| #7a + #7b | Agent M Core + Discovery + Mining | v2.4.2 + toolkit v0.10.0 (closed after 5/5 + 7/7 parts) |
+| #13 | `diataxis-author` skill | v2.4.3 + toolkit v0.11.0 |
+| #8 | Auto-context into harness phases | v2.5.0 + toolkit v0.11.1 |
+| #9 | Evidence-tracking for `/work` | v2.6.0 + toolkit v0.12.0 |
+| #10 | Quality-gates bundle | v2.6.1 + toolkit v0.13.0 |
+| #12 + #27 + #31 | V3 close-out (retrospective + Agent M HLD + roadmap split + READMEs + 1.0/3.0 paired release) | **v3.0.0 + toolkit v1.0.0 (this release)** |
+
+### Added
+
+- **`README.md`** — Agent M brand-framed rewrite. Lead paragraph names Agent M, then a "What's where" table that names the four pieces (Agent M as the whole / harness this repo / Cricket the sibling toolkit / AgentMemory vault). Get-started section restored (clone both repos, point vault, install harness + Cricket bundle + memory skill, seed always-load, verify). Phases table preserved with auto-recall note. Architecture-history pointer goes to V3 retrospective + HLD on Cricket side.
+- **`wiki/Home.md`** rewrite (shipped earlier in this arc, commit `ed5ab7b`) — Agent M-centric landing for the harness wiki.
+- **`wiki/reference/Completed-Features.md`** v3.0.0 row.
+
+### Changed
+
+- **Brand**: the system is now **Agent M** in operator-facing prose. The `agentic-harness` repo name + path literals (`AgentMemory/` vault folder, `harness_memory.py` script, `MEMORY_VAULT_PATH` env var) stay as code-side names. Per the locked branding convention.
+
+### Internal
+
+- **2 commits on this side** since v2.6.1: `ed5ab7b` (harness wiki Home rewrite as Agent M landing), `8c871c5` (Agent M README), plus this v3.0.0 release commit.
+- **Paired-release ordering**: toolkit v1.0.0 tagged first; this release URL-links to it per `[[coordinated-release-order]]`.
+- **8th consecutive paired-release pair** + first MAJOR-MAJOR pair. The harness's V-versioning (v3.0.0) now matches the memory implementation V-versioning (V3) explicitly.
+- **Roadmap split** (operator-local, `.harness/` gitignored): main `ROADMAP.md` slimmed to non-V4 backlog (118 lines, was 658); new `ROADMAP-AgentMemoryV4.md` carries the 9 V4-line items; full pre-split V3-era snapshot preserved at `ROADMAP.archive.20260523-v3-complete.md`.
+
 ## [v2.6.1] — 2026-05-23 — quality-gates bundle (paired with toolkit v0.13.0)
 
 Patch — **paired-doc-only**. Substantive change ships entirely on the toolkit side: new [`quality-gates` bundle](https://github.com/alexherrero/agent-toolkit/blob/main/bundles/quality-gates/bundle.md) one-command-installs the 4 base operator-control + verification primitives most agentic-harness `/work` sessions want (`evaluator` sub-agent + `kill-switch` / `steer` / `commit-on-stop` / `evidence-tracker` hooks). 7th consecutive paired-release pair.
