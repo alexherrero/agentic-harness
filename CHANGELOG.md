@@ -5,6 +5,29 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.0.1] — 2026-05-24 — Agent M logo hero + brand asset set (harness-only PATCH)
+
+Patch — **first visual brand iteration**. Adds the Agent M logo asset set and refreshes `README.md` with a centered logo hero, italic tagline, and reorganized badge layout per the new [[personal-comms-style]] public-surface conventions. Designed in Claude.ai Artifacts.
+
+**No behavior changes.** Pure docs + asset additions; harness behavior unchanged. **Not paired with Cricket this round** — Cricket assets land separately when those arrive; this is a solo harness PATCH. Plan #15 task 1 close-out (Wave 1 of the README refresh).
+
+### Added
+
+- **`assets/agent-m/`** — Agent M primary mark in 4 treatments (standard / clean / transparent / clean-transparent) × multiple PNG sizes (16 / 32 / 48 / 64 / 128 / 256 / 512 / 1024 / 2048) + SVG wrappers. ~27 asset files.
+- **`assets/m-monogram/`** — secondary "M" letter mark in true-vector SVG + transparent variants + PNG sizes (16 → 2048). ~14 asset files.
+- **`assets/index.html`** — brand-asset preview page showing all variants on light / dark / checkered backgrounds. Includes brand palette swatch (`--ink: #0a0a0a` + `--paper: #f4efe6`) and typography choices (Inter Tight + JetBrains Mono).
+
+### Changed
+
+- **`README.md` hero** — centered logo hero (`assets/agent-m/agent-m-clean-transparent-512.png` at displayed 256px), italic tagline (*"Persistent agentic memory + phase-gated engineering harness."*), and reorganized badge layout into two centered blocks (test/release/license + host-compat). H1 swapped from markdown `#` to `<h1 align="center">` for visual coherence with the centered hero. Rest of the README untouched.
+
+### Internal
+
+- 1 commit on this side: [`da206d6`](https://github.com/alexherrero/agentic-harness/commit/da206d6) (assets + README) + this v3.0.1 release commit.
+- **First visual asset commit since repo inception** — establishes `assets/` as the brand-asset convention going forward.
+- **Cricket has no corresponding change this round** — Cricket assets will land in a separate `agent-toolkit` PATCH when those are designed.
+- **Operator-review-gated** per [[docs-prose-style]] workflow; explicit approve-and-ship green-light received before push.
+
 ## [v3.0.0] — 2026-05-24 — Agent M V3 close-out (paired with toolkit v1.0.0 — Cricket 1.0)
 
 Major — **Agent M V3 ships**. The harness version now matches the memory implementation V-versioning: V3 is the merged-Obsidian-and-GDrive vault with auto-recall in every harness phase + controlled write under the permeable A3 boundary + the full `/memory` skill surface on the Cricket side. Paired with [`agent-toolkit v1.0.0`](https://github.com/alexherrero/agent-toolkit/releases/tag/v1.0.0) which ships **Cricket 1.0** — the toolkit's 1.0 commitment to a stable public API surface.
