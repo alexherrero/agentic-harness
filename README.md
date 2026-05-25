@@ -21,15 +21,15 @@
 
 **Agent M** is an agentic memory implementation that combines a persistent knowledge layer with personally curated content (i.e. your own notes in markdown format) through a combination of skills, sidecars, and vectorized indexing. Imagine those workflows you saw in the movies. You're talking to your agent, *"open a new project file for M"* and off you go. It remembers your projects and files together, talks to you about them, and learns and grows with you as you work. The context it builds is self-maintaining and improves automatically as you go. No need to spend time maintaining your own knowledge graphs, and it can help you with your personal notes too, when **you** want it to.
 
-This repo is the **harness** — the phase-gated workflow, auto-recall hooks, sub-agents, and on-disk state that make Agent M a system instead of a folder of files. Sibling repo [Cricket (`agent-toolkit`)](https://github.com/alexherrero/agent-toolkit) ships the small-but-powerful primitives (skills, hooks, sub-agents, bundles) that the harness installs into your target projects.
+This repo is the **harness** — the phase-gated workflow, auto-recall hooks, sub-agents, and on-disk state that make Agent M a system instead of a folder of files. Sibling repo [Crickets (`agent-toolkit`)](https://github.com/alexherrero/agent-toolkit) ships the small-but-powerful primitives (skills, hooks, sub-agents, bundles) that the harness installs into your target projects.
 
 ## What's where
 
 | Piece | What it is |
 |---|---|
-| **Agent M** | The system as a whole — this repo + Cricket + your AgentMemory vault folder, working together |
+| **Agent M** | The system as a whole — this repo + Crickets + your AgentMemory vault folder, working together |
 | **Harness** (this repo) | Phase-gated workflow (`/setup` `/plan` `/work` `/review` `/release` `/bugfix`) + auto-recall + sub-agents + scripts |
-| **Cricket** ([`agent-toolkit`](https://github.com/alexherrero/agent-toolkit)) | Skills, hooks, sub-agents, bundles — the primitives you install into your projects |
+| **Crickets** ([`agent-toolkit`](https://github.com/alexherrero/agent-toolkit)) | Skills, hooks, sub-agents, bundles — the primitives you install into your projects |
 | **AgentMemory vault** | Your Obsidian markdown folder (synced via Google Drive / Dropbox / etc.) — agent reads at session start, writes under controlled conditions |
 
 The harness has earned its opinionated identity — small, not a 150-agent supermarket. While it can be used with YOLO mode and other fully automated coding workflows, it's intended for workflows that keep a human in the loop.
@@ -56,13 +56,13 @@ export MEMORY_VAULT_PATH="<sync-root>/AgentMemory"
 
 Any sync layer works (Google Drive, Dropbox, syncthing).
 
-**3. Install the harness + Cricket bundle into your target project**
+**3. Install the harness + Crickets bundle into your target project**
 
 ```bash
 # Harness (this repo) — slash commands, sub-agents, .harness/ state, AGENTS.md / CLAUDE.md, wiki/ scaffold
 bash ~/Antigravity/agentic-harness/install.sh [--hooks] /path/to/your-project
 
-# Cricket bundle — evaluator sub-agent + 4 base hooks (kill-switch, steer, commit-on-stop, evidence-tracker) in one operation
+# Crickets bundle — evaluator sub-agent + 4 base hooks (kill-switch, steer, commit-on-stop, evidence-tracker) in one operation
 bash ~/Antigravity/agent-toolkit/install.sh /path/to/your-project --bundle quality-gates
 
 # Memory skill — /memory save / evolve / reflect / search / etc.
@@ -123,10 +123,10 @@ Every phase auto-recalls relevant entries from your AgentMemory vault at start, 
 
 | Skill | What it does |
 |---|---|
-| [`migrate-to-diataxis`](harness/skills/migrate-to-diataxis.md) | One-shot migration of an already-installed project's `wiki/` to the Diátaxis four-mode layout. Preview-first, `git mv` for blame, non-destructive. (Superseded by Cricket's `diataxis-author` skill for new work; kept for legacy migration.) |
+| [`migrate-to-diataxis`](harness/skills/migrate-to-diataxis.md) | One-shot migration of an already-installed project's `wiki/` to the Diátaxis four-mode layout. Preview-first, `git mv` for blame, non-destructive. (Superseded by Crickets' `diataxis-author` skill for new work; kept for legacy migration.) |
 | [`doctor`](harness/skills/doctor.md) | User-invoked (`/doctor`). Verifies the install is correctly wired up in this host — structural by default, `--live` adds real sub-agent dispatches and skill dry-runs. |
 
-Personal customizations (skills, sub-agents, hooks, MCP servers, bundles) live in [Cricket](https://github.com/alexherrero/agent-toolkit) — see [ADR 0006](wiki/explanation/decisions/0006-agent-toolkit-split.md) for the split.
+Personal customizations (skills, sub-agents, hooks, MCP servers, bundles) live in [Crickets](https://github.com/alexherrero/agent-toolkit) — see [ADR 0006](wiki/explanation/decisions/0006-agent-toolkit-split.md) for the split.
 
 ## Telemetry
 
@@ -134,13 +134,13 @@ Personal customizations (skills, sub-agents, hooks, MCP servers, bundles) live i
 
 ## Architecture history
 
-Agent M has grown over time across paired releases of `agentic-harness` and `agent-toolkit`. The full V1→V4 evolution — what shipped, what's deferred, where the design is going — lives in [Agent Memory Evolution](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/designs/agent-memory-evolution.md) on the Cricket side. [V3 Retrospective](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/v3-retrospective.md) covers what shipped, what we learned, what's deferred.
+Agent M has grown over time across paired releases of `agentic-harness` and `agent-toolkit`. The full V1→V4 evolution — what shipped, what's deferred, where the design is going — lives in [Agent Memory Evolution](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/designs/agent-memory-evolution.md) on the Crickets side. [V3 Retrospective](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/v3-retrospective.md) covers what shipped, what we learned, what's deferred.
 
 For the harness's design rationale, see [harness/principles.md](harness/principles.md) and the architecture decisions under [wiki/explanation/decisions/](wiki/explanation/decisions/).
 
 ## Status
 
-Currently shipping **v3.0.0** — see [CHANGELOG.md](CHANGELOG.md) and the [latest release](https://github.com/alexherrero/agentic-harness/releases/latest). Releases and release notes are the source of truth; the harness ships in lockstep with Cricket as paired releases.
+Currently shipping **v3.0.0** — see [CHANGELOG.md](CHANGELOG.md) and the [latest release](https://github.com/alexherrero/agentic-harness/releases/latest). Releases and release notes are the source of truth; the harness ships in lockstep with Crickets as paired releases.
 
 ## Contributing
 

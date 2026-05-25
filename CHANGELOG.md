@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Patch — **first visual brand iteration**. Adds the Agent M logo asset set and refreshes `README.md` with a centered logo hero, italic tagline, and reorganized badge layout per the new [[personal-comms-style]] public-surface conventions. Designed in Claude.ai Artifacts.
 
-**No behavior changes.** Pure docs + asset additions; harness behavior unchanged. **Not paired with Cricket this round** — Cricket assets land separately when those arrive; this is a solo harness PATCH. Plan #15 task 1 close-out (Wave 1 of the README refresh).
+**No behavior changes.** Pure docs + asset additions; harness behavior unchanged. **Not paired with Crickets this round** — Crickets assets land separately when those arrive; this is a solo harness PATCH. Plan #15 task 1 close-out (Wave 1 of the README refresh).
 
 ### Added
 
@@ -25,16 +25,16 @@ Patch — **first visual brand iteration**. Adds the Agent M logo asset set and 
 
 - 1 commit on this side: [`da206d6`](https://github.com/alexherrero/agentic-harness/commit/da206d6) (assets + README) + this v3.0.1 release commit.
 - **First visual asset commit since repo inception** — establishes `assets/` as the brand-asset convention going forward.
-- **Cricket has no corresponding change this round** — Cricket assets will land in a separate `agent-toolkit` PATCH when those are designed.
+- **Crickets has no corresponding change this round** — Crickets assets will land in a separate `agent-toolkit` PATCH when those are designed.
 - **Operator-review-gated** per [[docs-prose-style]] workflow; explicit approve-and-ship green-light received before push.
 
-## [v3.0.0] — 2026-05-24 — Agent M V3 close-out (paired with toolkit v1.0.0 — Cricket 1.0)
+## [v3.0.0] — 2026-05-24 — Agent M V3 close-out (paired with toolkit v1.0.0 — Crickets 1.0)
 
-Major — **Agent M V3 ships**. The harness version now matches the memory implementation V-versioning: V3 is the merged-Obsidian-and-GDrive vault with auto-recall in every harness phase + controlled write under the permeable A3 boundary + the full `/memory` skill surface on the Cricket side. Paired with [`agent-toolkit v1.0.0`](https://github.com/alexherrero/agent-toolkit/releases/tag/v1.0.0) which ships **Cricket 1.0** — the toolkit's 1.0 commitment to a stable public API surface.
+Major — **Agent M V3 ships**. The harness version now matches the memory implementation V-versioning: V3 is the merged-Obsidian-and-GDrive vault with auto-recall in every harness phase + controlled write under the permeable A3 boundary + the full `/memory` skill surface on the Crickets side. Paired with [`agent-toolkit v1.0.0`](https://github.com/alexherrero/agent-toolkit/releases/tag/v1.0.0) which ships **Crickets 1.0** — the toolkit's 1.0 commitment to a stable public API surface.
 
 **What Agent M V3 is** (in operator-facing terms):
 
-- The system as a whole — this repo + Cricket + your AgentMemory vault folder, working together.
+- The system as a whole — this repo + Crickets + your AgentMemory vault folder, working together.
 - Markdown-and-frontmatter knowledge layer that lives in a folder your agent reads at every session start, can write to under controlled conditions, and that the harness's phase commands hook into at natural boundaries (`/setup` / `/plan` / `/work` / `/review` / `/release` / `/bugfix`).
 - Self-modulating offer-save (confidence-thresholded), cursor-tracked promotion, evidence-tracked task closeouts, quality-gates bundle for one-command install.
 
@@ -47,7 +47,7 @@ Major — **Agent M V3 ships**. The harness version now matches the memory imple
 - Vault-backed harness state (move `.harness/PLAN.md` + `progress.md` into the vault)
 - FRIDAY-style natural-extension surface
 
-V4 design space lives in `.harness/ROADMAP-AgentMemoryV4.md` (operator-local; `.harness/` is gitignored). Full V1→V4 evolution narrative in the new HLD on the Cricket side: [Agent Memory Evolution](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/designs/agent-memory-evolution.md).
+V4 design space lives in `.harness/ROADMAP-AgentMemoryV4.md` (operator-local; `.harness/` is gitignored). Full V1→V4 evolution narrative in the new HLD on the Crickets side: [Agent Memory Evolution](https://github.com/alexherrero/agent-toolkit/blob/main/wiki/explanation/designs/agent-memory-evolution.md).
 
 ### What shipped across the V3 arc (v1.0.0 → v3.0.0)
 
@@ -72,7 +72,7 @@ V4 design space lives in `.harness/ROADMAP-AgentMemoryV4.md` (operator-local; `.
 
 ### Added
 
-- **`README.md`** — Agent M brand-framed rewrite. Lead paragraph names Agent M, then a "What's where" table that names the four pieces (Agent M as the whole / harness this repo / Cricket the sibling toolkit / AgentMemory vault). Get-started section restored (clone both repos, point vault, install harness + Cricket bundle + memory skill, seed always-load, verify). Phases table preserved with auto-recall note. Architecture-history pointer goes to V3 retrospective + HLD on Cricket side.
+- **`README.md`** — Agent M brand-framed rewrite. Lead paragraph names Agent M, then a "What's where" table that names the four pieces (Agent M as the whole / harness this repo / Crickets the sibling toolkit / AgentMemory vault). Get-started section restored (clone both repos, point vault, install harness + Crickets bundle + memory skill, seed always-load, verify). Phases table preserved with auto-recall note. Architecture-history pointer goes to V3 retrospective + HLD on Crickets side.
 - **`wiki/Home.md`** rewrite (shipped earlier in this arc, commit `ed5ab7b`) — Agent M-centric landing for the harness wiki.
 - **`wiki/reference/Completed-Features.md`** v3.0.0 row.
 
