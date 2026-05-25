@@ -1,22 +1,20 @@
 #!/usr/bin/env bash
 # regenerate-banner.sh — re-render the Agent M brand banner PNGs from assets/banner.html
 #
-# Run as part of release prep:
-#   bash scripts/regenerate-banner.sh                 # auto-detect version from CHANGELOG.md
-#   bash scripts/regenerate-banner.sh v3.0.2          # explicit version
+# Run whenever banner.html changes:
+#   bash scripts/regenerate-banner.sh
 #
-# The script updates the Version line in assets/banner.html in place, then
-# renders 2 PNGs via headless Chrome:
-#   assets/agent-m/banner-1600.png (1600×640, README hero size)
-#   assets/agent-m/banner-3200.png (3200×1280, retina/2x)
+# Renders 2 PNGs via headless Chrome:
+#   assets/agent-m/banner-1600.png (1600×430, README hero size)
+#   assets/agent-m/banner-3200.png (3200×860, retina/2x)
 #
+# The banner is a static brand asset — no release-version dependency.
 # Reqs: a Chrome install (macOS, Linux apt, or Windows in Git Bash / MSYS).
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BANNER_SRC="$REPO_ROOT/assets/banner.html"
-CHANGELOG="$REPO_ROOT/CHANGELOG.md"
 OUT_DIR="$REPO_ROOT/assets/agent-m"
 
 # ---------- detect headless Chrome (cross-platform) ----------
@@ -51,40 +49,26 @@ CHROME="$(detect_chrome)" || {
 
 [ -f "$BANNER_SRC" ] || { echo "ERROR: banner source missing at $BANNER_SRC" >&2; exit 1; }
 
-# ---------- determine target version ----------
-NEW_VERSION="${1:-}"
-if [ -z "$NEW_VERSION" ]; then
-  # Auto-detect from CHANGELOG.md first "## [vX.Y.Z] — ..." header
-  [ -f "$CHANGELOG" ] || { echo "ERROR: no CHANGELOG at $CHANGELOG and no version arg given" >&2; exit 1; }
-  NEW_VERSION="$(grep -E '^## \[v?[0-9]+\.[0-9]+\.[0-9]+\]' "$CHANGELOG" | head -1 | grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
-  [ -n "$NEW_VERSION" ] || { echo "ERROR: could not auto-detect version from $CHANGELOG" >&2; exit 1; }
-  [[ "$NEW_VERSION" == v* ]] || NEW_VERSION="v$NEW_VERSION"
-  echo "Auto-detected version from CHANGELOG: $NEW_VERSION"
-fi
-
-# ---------- substitute version into banner.html ----------
-# Match: [ Version &nbsp;<span class="sep">|</span> vX.Y.Z ]
-# BSD/GNU sed compatibility via -i.bak then remove backup
-sed -i.bak -E "s|(Version &nbsp;<span class=\"sep\">\|</span> )v[0-9]+\.[0-9]+\.[0-9]+|\1${NEW_VERSION}|" "$BANNER_SRC"
-rm -f "$BANNER_SRC.bak"
-echo "Updated $BANNER_SRC version line to $NEW_VERSION"
-
 # ---------- render ----------
 mkdir -p "$OUT_DIR"
 
 render() {
   local w="$1" h="$2" out="$3"
   echo "Rendering ${w}×${h} → $out ..."
+  # --virtual-time-budget gives Google Fonts (Inter Tight + JetBrains Mono) time to load
+  # over the network before screenshot capture; without it the cream tagline plate
+  # can render with missing mono-font glyphs.
   "$CHROME" \
     --headless --disable-gpu --hide-scrollbars \
     --window-size="$w,$h" \
+    --virtual-time-budget=10000 \
     --default-background-color=00000000 \
     --screenshot="$out" \
     "file://$BANNER_SRC" 2>/dev/null
 }
 
-render 1600 640  "$OUT_DIR/banner-1600.png"
-render 3200 1280 "$OUT_DIR/banner-3200.png"
+render 1600 430 "$OUT_DIR/banner-1600.png"
+render 3200 860 "$OUT_DIR/banner-3200.png"
 
 # Portable file-size readout
 fsize() {
@@ -98,4 +82,4 @@ echo "Done."
 echo "  $OUT_DIR/banner-1600.png ($(fsize "$OUT_DIR/banner-1600.png") bytes)"
 echo "  $OUT_DIR/banner-3200.png ($(fsize "$OUT_DIR/banner-3200.png") bytes)"
 echo ""
-echo "Commit the regenerated banners + banner.html change alongside the release."
+echo "Commit the regenerated banners alongside any banner.html design changes."

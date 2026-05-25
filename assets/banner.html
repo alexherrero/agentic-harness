@@ -13,7 +13,7 @@
        always centered and visible while editing. */
     :root {
       --bw: 1600;
-      --bh: 640;
+      --bh: 430;
       --ink: #000;
       --paper: #f4efe6;     /* brand paper — aligned with the badge convention (plan #15 task 6) */
       --paper-2: #c4bcab;
@@ -35,6 +35,7 @@
       color: white;
       display: grid;
       grid-template-columns: 640px 1fr;
+      grid-template-rows: 100%;
       overflow: hidden;
       position: relative;
     }
@@ -62,7 +63,7 @@
     /* ----- RIGHT: stacked panels --------------------------------------- */
     .copy {
       display: grid;
-      grid-template-rows: 1fr 1fr 1.05fr;
+      grid-template-rows: 1fr 1fr;
       min-width: 0;
     }
 
@@ -170,14 +171,7 @@
           </div>
         </div>
         <div class="band-tagline">
-          <div class="tagline">[ CLASSIFIED AUTONOMOUS<br/>&nbsp;&nbsp;KNOWLEDGE SYSTEM ]</div>
-        </div>
-        <div class="band-status">
-          <div class="status-line ci">[ CI &nbsp;|&nbsp; PASSING ]</div>
-          <span class="status-rule double"></span>
-          <div class="status-line">[ Coverage <span class="sep">|</span> 98% ]</div>
-          <div class="status-line">[ Version &nbsp;<span class="sep">|</span> v3.0.1 ]</div>
-          <div class="status-line">[ License &nbsp;<span class="sep">|</span> MIT ]</div>
+          <div class="tagline">[ AUTONOMOUS KNOWLEDGE SYSTEM ]</div>
         </div>
       </div>
     </div>
@@ -185,9 +179,11 @@
 
   <script>
     // Scale banner to fit viewport while preserving aspect ratio.
-    const bw = 1600, bh = 640;
+    // pad=0 means screenshot capture at exact 1600x430 renders at scale 1
+    // (no shrinkage); browser preview at larger viewports still scales down to fit.
+    const bw = 1600, bh = 430;
     const fit = () => {
-      const pad = 32;
+      const pad = 0;
       const sx = (window.innerWidth - pad * 2) / bw;
       const sy = (window.innerHeight - pad * 2) / bh;
       document.documentElement.style.setProperty('--scale', Math.min(sx, sy, 1));

@@ -4,31 +4,27 @@
 
 <h1 align="center">Agent M</h1>
 
-<p align="center"><em>The structural backend harness you wished you had — part Star Trek Computer, part J.A.R.V.I.S.</em></p>
+<p align="center"><em>The agent harness that gives you the assistant you want — part Star Trek Computer, part J.A.R.V.I.S.</em></p>
 
 <!--
-  Badge convention (plan #15 task 6) — apply uniformly across the brand-system:
+  Badge convention (plan #15 task 6 v2) — apply uniformly across the brand-system:
     labelColor = 0a0a0a (ink, brand)
     color      = auto (semantic green/red on CI; semver-colored on release)
-                 OR f4efe6 (paper) for state-less metadata
-                 OR host's brand color for "works with" badges
-    style      = flat
+                 OR f4efe6 (paper) for state-less metadata (e.g. LICENSE)
+    style      = for-the-badge (brutalist, ALL CAPS, sharp corners — matches banner motif)
     logo       = github (logoColor f4efe6) on CI + release badges
+  CI uses the aggregate `github/checks-status` endpoint to roll up all OS workflows
+  into one badge. Compatibility (hosts that run the harness) lives at wiki/reference/Compatibility.md.
   Mirrored on the Crickets README via task 7. Documented in PLAN.md task 7.
 -->
 
 <p align="center">
-  <a href="https://github.com/alexherrero/agentic-harness/actions/workflows/tests-linux.yml"><img src="https://img.shields.io/github/actions/workflow/status/alexherrero/agentic-harness/tests-linux.yml?branch=main&label=Linux&style=flat&labelColor=0a0a0a&logo=github&logoColor=f4efe6" alt="Linux Tests"></a>
-  <a href="https://github.com/alexherrero/agentic-harness/actions/workflows/tests-mac.yml"><img src="https://img.shields.io/github/actions/workflow/status/alexherrero/agentic-harness/tests-mac.yml?branch=main&label=Mac&style=flat&labelColor=0a0a0a&logo=github&logoColor=f4efe6" alt="Mac Tests"></a>
-  <a href="https://github.com/alexherrero/agentic-harness/actions/workflows/tests-windows.yml"><img src="https://img.shields.io/github/actions/workflow/status/alexherrero/agentic-harness/tests-windows.yml?branch=main&label=Windows&style=flat&labelColor=0a0a0a&logo=github&logoColor=f4efe6" alt="Windows Tests"></a>
-  <a href="https://github.com/alexherrero/agentic-harness/releases/latest"><img src="https://img.shields.io/github/v/release/alexherrero/agentic-harness?label=latest&labelColor=0a0a0a&logo=github&logoColor=f4efe6&style=flat" alt="Latest release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-f4efe6?labelColor=0a0a0a&style=flat" alt="License: MIT"></a>
+  <a href="https://github.com/alexherrero/agentic-harness/actions?query=branch%3Amain"><img src="https://img.shields.io/github/checks-status/alexherrero/agentic-harness/main?style=for-the-badge&label=CI&labelColor=0a0a0a&logo=github&logoColor=f4efe6" alt="CI"></a>
+  <a href="https://github.com/alexherrero/agentic-harness/releases/latest"><img src="https://img.shields.io/github/v/release/alexherrero/agentic-harness?label=LATEST&labelColor=0a0a0a&logo=github&logoColor=f4efe6&style=for-the-badge" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/LICENSE-MIT-f4efe6?labelColor=0a0a0a&style=for-the-badge" alt="License: MIT"></a>
 </p>
 
-<p align="center">
-  <a href="adapters/claude-code/"><img src="https://img.shields.io/badge/works%20with-Claude%20Code-D97706?labelColor=0a0a0a&style=flat" alt="Works with Claude Code"></a>
-  <a href="adapters/antigravity/"><img src="https://img.shields.io/badge/works%20with-Antigravity-7C3AED?labelColor=0a0a0a&style=flat" alt="Works with Antigravity"></a>
-</p>
+<p align="center"><sub>Works with Claude Code + Antigravity — <a href="wiki/reference/Compatibility.md">see compatibility</a></sub></p>
 
 Think of **Agent M** as the structural backend harness you wished you had—part Star Trek Computer, part J.A.R.V.I.S.-level contextual autonomy, engineered to manage your projects, memory, and persistent knowledge across any modern agent surface, gaining experience and self-improving as it goes.
 

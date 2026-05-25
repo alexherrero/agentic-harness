@@ -4,20 +4,15 @@
 
 <h1 align="center">Agent M — agentic-harness</h1>
 
-<p align="center"><em>The structural backend harness you wished you had — part Star Trek Computer, part J.A.R.V.I.S.</em></p>
+<p align="center"><em>The agent harness that gives you the assistant you want — part Star Trek Computer, part J.A.R.V.I.S.</em></p>
 
 <p align="center">
-  <a href="https://github.com/alexherrero/agentic-harness/actions/workflows/tests-linux.yml"><img src="https://img.shields.io/github/actions/workflow/status/alexherrero/agentic-harness/tests-linux.yml?branch=main&label=Linux&style=flat&labelColor=0a0a0a&logo=github&logoColor=f4efe6" alt="Linux Tests"></a>
-  <a href="https://github.com/alexherrero/agentic-harness/actions/workflows/tests-mac.yml"><img src="https://img.shields.io/github/actions/workflow/status/alexherrero/agentic-harness/tests-mac.yml?branch=main&label=Mac&style=flat&labelColor=0a0a0a&logo=github&logoColor=f4efe6" alt="Mac Tests"></a>
-  <a href="https://github.com/alexherrero/agentic-harness/actions/workflows/tests-windows.yml"><img src="https://img.shields.io/github/actions/workflow/status/alexherrero/agentic-harness/tests-windows.yml?branch=main&label=Windows&style=flat&labelColor=0a0a0a&logo=github&logoColor=f4efe6" alt="Windows Tests"></a>
-  <a href="https://github.com/alexherrero/agentic-harness/releases/latest"><img src="https://img.shields.io/github/v/release/alexherrero/agentic-harness?label=latest&labelColor=0a0a0a&logo=github&logoColor=f4efe6&style=flat" alt="Latest release"></a>
-  <a href="https://github.com/alexherrero/agentic-harness/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-f4efe6?labelColor=0a0a0a&style=flat" alt="License: MIT"></a>
+  <a href="https://github.com/alexherrero/agentic-harness/actions?query=branch%3Amain"><img src="https://img.shields.io/github/checks-status/alexherrero/agentic-harness/main?style=for-the-badge&label=CI&labelColor=0a0a0a&logo=github&logoColor=f4efe6" alt="CI"></a>
+  <a href="https://github.com/alexherrero/agentic-harness/releases/latest"><img src="https://img.shields.io/github/v/release/alexherrero/agentic-harness?label=LATEST&labelColor=0a0a0a&logo=github&logoColor=f4efe6&style=for-the-badge" alt="Latest release"></a>
+  <a href="https://github.com/alexherrero/agentic-harness/blob/main/LICENSE"><img src="https://img.shields.io/badge/LICENSE-MIT-f4efe6?labelColor=0a0a0a&style=for-the-badge" alt="License: MIT"></a>
 </p>
 
-<p align="center">
-  <a href="https://github.com/alexherrero/agentic-harness/tree/main/adapters/claude-code"><img src="https://img.shields.io/badge/works%20with-Claude%20Code-D97706?labelColor=0a0a0a&style=flat" alt="Works with Claude Code"></a>
-  <a href="https://github.com/alexherrero/agentic-harness/tree/main/adapters/antigravity"><img src="https://img.shields.io/badge/works%20with-Antigravity-7C3AED?labelColor=0a0a0a&style=flat" alt="Works with Antigravity"></a>
-</p>
+<p align="center"><sub>Works with Claude Code + Antigravity — <a href="Compatibility">see compatibility</a></sub></p>
 
 Agent M is an agentic memory implementation that combines a persistent knowledge layer with personally curated content (i.e. your own notes in markdown format) through a combination of skills, sidecars, and vectorized indexing. Imagine those workflows you saw in the movies. You're talking to your agent, *"Let's open a new file for project M"* and off you go. It remembers your projects and files together, can talk to you about them, and it learns and grows with you as you work. The context it builds is self-maintaining and it improves automatically as you go. No need to spend time maintaining your own knowledge graphs, and it can help you with your personal notes too, when **you** want it to.
 
@@ -85,6 +80,7 @@ Should print your always-load entries within the 4000-token budget. Empty = vaul
 - [Installer CLI reference](Installer-CLI) — flags, prerequisites, ownership table for `install.sh` / `install.ps1`.
 - [CI gates reference](CI-Gates) — what each CI workflow proves and the script behind it.
 - [Repo layout reference](Repo-Layout) — top-level directory map and four-adapter parity table.
+- [Compatibility](Compatibility) — supported hosts (Claude Code, Antigravity) + OS matrix + adapter contract.
 - [Completed features](Completed-Features) — reverse-chronological log of shipped work.
 
 ## 💡 Want to know why?

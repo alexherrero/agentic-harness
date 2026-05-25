@@ -13,6 +13,7 @@
 - [Installer CLI](Installer-CLI)
 - [CI gates](CI-Gates)
 - [Repo layout](Repo-Layout)
+- [Compatibility](Compatibility)
 - [Completed features](Completed-Features)
 
 ### 💡 Explanation
