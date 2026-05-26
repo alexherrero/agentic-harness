@@ -5,6 +5,29 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.2.0] — 2026-05-25 — Doctor probes for Antigravity 2.0 + Antigravity CLI primitives
+
+Minor — **harness-side doctor probes for the new Antigravity 2.0 + Antigravity CLI (`agy`) host surface**. Paired with `crickets` v1.2.0 (the toolkit-side support) — see [crickets v1.2.0 release notes](https://github.com/alexherrero/crickets/releases/tag/v1.2.0). Together with crickets v1.2.0, ships ahead of the 2026-06-18 Gemini CLI consumer sunset.
+
+### Changed
+
+- **`harness/skills/doctor.md`** — added 3 new live probes for Antigravity 2.0:
+  - **Probe 7**: agy v1.0.2+ discoverability (`agy --version` + `~/.gemini/config/plugins/` exists).
+  - **Probe 8**: skill discovery at `.agents/skills/` (plural — v1.2.0 crickets convention per crickets ADR 0011). Detects the v1.0.x `.agent/` (singular) path as a migration trigger and emits a clear fail signal pointing at `bash install.sh --update <project>`.
+  - **Probe 9**: plugin discovery via `install-plugin.sh --list` + `plugin.json` validation against the standard schema (matches the 5 official Google-shipped plugins observed in `~/.gemini/config/plugins/`).
+- **Adapter detection** for Antigravity updated from `.agent/workflows/` → `.agents/workflows/` (plural) per the v1.2.0 path migration. Adapter table now reads "Antigravity 2.0 / agy CLI".
+- **Invocation table** updated: removed the legacy Gemini row; Antigravity 2.0 + agy share a single invocation path reading from `.agents/skills/doctor/SKILL.md`.
+
+### Cross-references
+
+- Paired sibling release: [crickets v1.2.0](https://github.com/alexherrero/crickets/releases/tag/v1.2.0) — `kind: plugin` + `.agents/` (plural) dispatch + Antigravity 2.0 host support.
+- Plan #16 task 15 — doctor probe additions (`agentm/.harness/PLAN.md` operator-local).
+- [crickets ADR 0011](https://github.com/alexherrero/crickets/blob/main/wiki/explanation/decisions/0011-antigravity-2-host-support.md) — the host-support decision driving these probes.
+
+### Why the small footprint
+
+The Antigravity 2.0 customization surface is owned by `crickets` (the toolkit ships into target projects); the harness's role is to verify customizations are wired up correctly. The doctor skill is the natural integration point — 3 new probes cover the new surfaces. No phase-spec changes; no adapter changes (the harness's own adapter dirs already follow the right convention via the underlying installer); no breaking changes.
+
 ## [v3.1.0] — 2026-05-25 — Repo rename agentic-harness → agentm + cross-ref sweep
 
 Minor — **repo rename release**. The GitHub repo for this project is now `alexherrero/agentm` (was `alexherrero/agentic-harness`). Brand name (Agent M) was always the operator-facing label; the rename brings the URL slug + clone path in line with the brand. Paired with `alexherrero/crickets` v1.1.0 (the customization toolkit, was agent-toolkit) — see [crickets v1.1.0 release notes](https://github.com/alexherrero/crickets/releases/tag/v1.1.0).

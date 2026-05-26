@@ -109,6 +109,44 @@ Only runs if `.claude/settings.json` has a hooks block. Write a trivial no-op fi
 
 This probe is best-effort: if `verify.sh` requires project-specific tooling (a specific `npx`, `ruff`, etc.) and that tooling isn't installed, report **skip** with the reason, not **fail**.
 
+### Probe 7: Antigravity CLI (`agy`) discoverability (v1.2.0+)
+
+Only runs when the Antigravity adapter is detected. Verifies that `agy` is on PATH + the Antigravity 2.0 plugin directory is healthy:
+
+```bash
+agy --version                                # should print 1.0.2+
+test -d ~/.gemini/config/plugins             # plugins root exists
+```
+
+**Pass criteria:** both checks succeed.
+**Fail signals:** `agy: command not found` (host install incomplete) OR `~/.gemini/config/plugins` missing (agy install didn't complete onboarding).
+**Skip:** `agy --version` returns < v1.0.2 (older agy may lack plugin discovery — see crickets ADR 0011 for the surface this probe targets).
+
+### Probe 8: Antigravity skill discovery at `.agents/skills/` (v1.2.0+)
+
+Only runs when the Antigravity adapter is detected. Verifies that a known crickets-installed skill landed at the correct plural path:
+
+```bash
+test -f .agents/skills/evaluator/SKILL.md    # or any known evaluator/sub-agent
+```
+
+**Pass criteria:** the file exists at `.agents/skills/<name>/SKILL.md`.
+**Fail signals:** file at `.agent/skills/<name>/` (singular — pre-v1.2.0 crickets install; suggest `bash install.sh --update <project>` to migrate) OR not present at all (skill not installed).
+**Skip:** no crickets-managed sub-agents declared `supported_hosts: [antigravity]` (nothing expected to be found).
+
+### Probe 9: Plugin discovery (Antigravity 2.0 + agy CLI; v1.2.0+)
+
+Only runs when the Antigravity adapter is detected AND at least one `kind: plugin` customization is locally installable. Verifies that crickets's user-global plugin install path works end-to-end:
+
+```bash
+bash /path/to/crickets/scripts/install-plugin.sh --list
+test -f ~/.gemini/config/plugins/example-plugin/plugin.json    # if example-plugin installed
+```
+
+**Pass criteria:** `install-plugin.sh --list` runs without error AND (if any plugin is installed) the `plugin.json` file at `~/.gemini/config/plugins/<plugin-name>/plugin.json` is valid JSON.
+**Fail signals:** `install-plugin.sh` not found in crickets toolkit; `plugin.json` malformed.
+**Skip:** no `kind: plugin` customizations installed (nothing to verify).
+
 ## Output contract
 
 ```
@@ -147,8 +185,7 @@ On any `FAIL`, the skill prints the specific reason under the failing row, exits
 | Adapter | Invocation |
 |---|---|
 | Claude Code | `/doctor` or `/doctor --live` (skill auto-triggers on "check my harness install" / "is the harness working") |
-| Antigravity | Prompt: *"Run the doctor skill"* (optionally `--live`) |
-| Gemini | Reads skill from `.agents/skills/doctor/SKILL.md` (delivered by `install.sh` per the Agent Skills standard) |
+| Antigravity 2.0 / agy CLI | Prompt: *"Run the doctor skill"* (optionally `--live`). Skill reads from `.agents/skills/doctor/SKILL.md` per the Antigravity 2.0 v1.2.0+ convention. |
 
 ## Guardrails
 
