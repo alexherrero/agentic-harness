@@ -1,9 +1,9 @@
 # Skill: migrate-to-diataxis
 
 > [!WARNING]
-> **DEPRECATED 2026-05-22.** This skill has been subsumed by [`crickets`'s `diataxis-author` skill](https://github.com/alexherrero/crickets/blob/main/skills/diataxis-author/SKILL.md) — specifically the `/diataxis migrate` sub-command which ships the same one-shot legacy → Diátaxis migration contract (preview-first, deterministic classification, `git mv` for blame, mode-mixed flagged for human split) plus net-new capabilities: `.diataxis-conventions.md` auto-seed for per-repo overrides, delegation to `/diataxis repair` for mode-mixed splits, AgentMemory integration for convention sync across the operator's wikis (lands in plan #13 part 5).
+> **DEPRECATED 2026-05-22.** This skill has been subsumed by the [`diataxis-author` compound skill](https://github.com/alexherrero/agentm/blob/main/harness/skills/diataxis-author/SKILL.md) (lived in `crickets/skills/diataxis-author/` pre-v4.0.0; moved to agentm in V4 #36) — specifically the `/diataxis migrate` sub-command which ships the same one-shot legacy → Diátaxis migration contract (preview-first, deterministic classification, `git mv` for blame, mode-mixed flagged for human split) plus net-new capabilities: `.diataxis-conventions.md` auto-seed for per-repo overrides, delegation to `/diataxis repair` for mode-mixed splits, AgentMemory integration for convention sync across the operator's wikis.
 >
-> **Use this instead**: `python3 ~/Antigravity/crickets/skills/diataxis-author/scripts/migrate.py --preview` (or via the skill body when Claude Code/Antigravity is dispatching).
+> **Use this instead**: `python3 ~/Antigravity/agentm/harness/skills/diataxis-author/scripts/migrate.py --preview` (or via the skill body when Claude Code/Antigravity is dispatching).
 >
 > This skill body stays in the harness through the v1 dogfood window for operators with mid-flight installs who already know its contract. A follow-up harness PATCH release will remove the file entirely once `diataxis-author/migrate` proves out in real use. **Do not extend this skill** — bug fixes + new functionality land in the toolkit-side `diataxis-author` skill.
 >
