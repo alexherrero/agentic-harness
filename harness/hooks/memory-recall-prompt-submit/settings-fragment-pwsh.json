@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File .claude/hooks/memory-recall-prompt-submit.ps1",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

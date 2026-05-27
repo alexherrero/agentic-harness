@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File .claude/hooks/memory-reflect-stop.ps1",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

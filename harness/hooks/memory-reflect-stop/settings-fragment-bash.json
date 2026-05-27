@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/memory-reflect-stop.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

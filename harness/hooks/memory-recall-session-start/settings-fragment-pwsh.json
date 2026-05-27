@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File .claude/hooks/memory-recall-session-start.ps1",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

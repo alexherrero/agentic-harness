@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/memory-recall-prompt-submit.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
