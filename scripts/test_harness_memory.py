@@ -1200,11 +1200,18 @@ class TestIsEntryDrifted(unittest.TestCase):
     """V4 #37 task 3: per-entry drift detection."""
 
     def _patch_open_index(self, db_path: Path):
-        """Return a mock.patch context that makes _open_index return our test db."""
+        """Return a mock.patch context that makes _open_index return our test db.
+
+        Uses side_effect (lazy) instead of return_value (eager) so the sqlite
+        connection is only created when production code actually invokes
+        _open_index(). Without this, early-return code paths (e.g. source-file
+        missing) would never consume the pre-built connection, leaking a file
+        handle that breaks tempdir cleanup on Windows (WinError 32).
+        """
         return mock.patch.object(
             vec_index,
             "_open_index",
-            return_value=_MockConn(db_path),
+            side_effect=lambda *a, **kw: _MockConn(db_path),
         )
 
     def test_returns_true_when_entry_not_indexed(self) -> None:
