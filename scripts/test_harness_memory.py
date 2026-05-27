@@ -1313,5 +1313,130 @@ class TestFindDriftedEntries(unittest.TestCase):
         self.assertEqual(result["up_to_date"], [])
 
 
+# -----------------------------------------------------------------------------
+# full_sync subcommand + embed-text extraction (V4 #37 task 4)
+# -----------------------------------------------------------------------------
+
+class TestExtractEmbedTextFromFile(unittest.TestCase):
+    """V4 #37 task 4: extract `{slug} [tags]\\n\\n{first_para}` from a .md file."""
+
+    def test_extracts_slug_and_tags_from_frontmatter(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "entry.md"
+            f.write_text(
+                "---\n"
+                "slug: my-pref\n"
+                "tags: [convention, status-report]\n"
+                "kind: preference\n"
+                "---\n"
+                "\nUse bullet points for status reports.\n",
+                encoding="utf-8",
+            )
+            text = vec_index._extract_embed_text_from_file(f)
+        self.assertIn("my-pref", text)
+        self.assertIn("convention, status-report", text)
+        self.assertIn("Use bullet points", text)
+
+    def test_falls_back_to_file_stem_when_no_slug(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "fallback-slug.md"
+            f.write_text("plain markdown no frontmatter", encoding="utf-8")
+            text = vec_index._extract_embed_text_from_file(f)
+        self.assertIn("fallback-slug", text)
+        self.assertIn("plain markdown", text)
+
+    def test_truncates_body_at_500_chars(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "long.md"
+            long_body = "A" * 1000
+            f.write_text(f"---\nslug: long\n---\n{long_body}", encoding="utf-8")
+            text = vec_index._extract_embed_text_from_file(f)
+        # Body portion should be ≤500 chars; total text includes slug + tags prefix.
+        body_portion = text.split("\n\n", 1)[1] if "\n\n" in text else text
+        self.assertLessEqual(len(body_portion), 500)
+
+    def test_returns_empty_when_file_missing(self) -> None:
+        result = vec_index._extract_embed_text_from_file(Path("/nonexistent/path.md"))
+        self.assertEqual(result, "")
+
+
+class TestFullSync(unittest.TestCase):
+    """V4 #37 task 4: full-sync subcommand (default report + --rebuild enqueue)."""
+
+    def _patch_open_index(self, db_path: Path):
+        return mock.patch.object(
+            vec_index,
+            "_open_index",
+            return_value=_MockConn(db_path),
+        )
+
+    def test_default_returns_summary_without_enqueueing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            vault = Path(tmp)
+            (vault / "personal-private").mkdir(parents=True)
+            (vault / "personal-private" / "a.md").write_text("x")
+            db = vault / "_meta" / "vec-index.db"
+            db.parent.mkdir(parents=True)
+            _seed_v37_index(db, {})
+            with self._patch_open_index(db):
+                result = vec_index.full_sync(vault, rebuild=False)
+            self.assertEqual(result["not_indexed_count"], 1)
+            self.assertEqual(result["enqueued"], 0)
+            # Queue file should NOT exist (no rebuild)
+            self.assertFalse((vault / "_meta" / "embedding-queue.jsonl").exists())
+
+    def test_rebuild_enqueues_drifted_and_not_indexed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            vault = Path(tmp)
+            (vault / "personal-private" / "_always-load").mkdir(parents=True)
+            stale = vault / "personal-private" / "_always-load" / "stale.md"
+            stale.write_text("---\nslug: stale\n---\nstale body", encoding="utf-8")
+            new_entry = vault / "personal-private" / "_always-load" / "new.md"
+            new_entry.write_text("---\nslug: new\n---\nnew body", encoding="utf-8")
+            db = vault / "_meta" / "vec-index.db"
+            db.parent.mkdir(parents=True)
+            _seed_v37_index(db, {
+                "personal-private/_always-load/stale.md": int(stale.stat().st_mtime) - 1000,
+            })
+            with self._patch_open_index(db):
+                result = vec_index.full_sync(vault, rebuild=True)
+            self.assertEqual(result["drifted_count"], 1)
+            self.assertEqual(result["not_indexed_count"], 1)
+            self.assertEqual(result["enqueued"], 2)
+            # Queue file should now exist with 2 records
+            queue_path = vault / "_meta" / "embedding-queue.jsonl"
+            self.assertTrue(queue_path.exists())
+            lines = queue_path.read_text(encoding="utf-8").strip().splitlines()
+            self.assertEqual(len(lines), 2)
+            # Each record is well-formed JSON with op=upsert + extracted text
+            for ln in lines:
+                rec = json.loads(ln)
+                self.assertEqual(rec["op"], "upsert")
+                self.assertIn(rec["path"], (
+                    "personal-private/_always-load/stale.md",
+                    "personal-private/_always-load/new.md",
+                ))
+                self.assertIn(rec["path"].split("/")[-1].rsplit(".", 1)[0], rec["text"])
+
+    def test_rebuild_idempotent_on_clean_vault(self) -> None:
+        """All entries up-to-date → no enqueueing."""
+        with tempfile.TemporaryDirectory() as tmp:
+            vault = Path(tmp)
+            (vault / "personal-private").mkdir(parents=True)
+            fresh = vault / "personal-private" / "fresh.md"
+            fresh.write_text("x")
+            db = vault / "_meta" / "vec-index.db"
+            db.parent.mkdir(parents=True)
+            _seed_v37_index(db, {
+                "personal-private/fresh.md": int(fresh.stat().st_mtime) + 60,
+            })
+            with self._patch_open_index(db):
+                result = vec_index.full_sync(vault, rebuild=True)
+            self.assertEqual(result["drifted_count"], 0)
+            self.assertEqual(result["not_indexed_count"], 0)
+            self.assertEqual(result["up_to_date_count"], 1)
+            self.assertEqual(result["enqueued"], 0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

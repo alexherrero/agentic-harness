@@ -502,6 +502,106 @@ def find_drifted_entries(vault_path: Path | str) -> dict:
     }
 
 
+def _extract_embed_text_from_file(file_path: Path) -> str:
+    """Extract embed-text from a markdown entry file: `{slug} [{tags}]\\n\\n{first_para_500}`.
+
+    Mirrors the format save.py uses at write time, so re-embeds via the
+    drift path produce the same shape as fresh saves.
+
+    Falls back to just the first 500 chars of raw content if frontmatter
+    parsing fails. Best-effort.
+    """
+    try:
+        text = file_path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+    # Parse frontmatter (between first two `---` lines) inline. Avoid
+    # importing yaml — keep this stdlib-only per ADR 0001.
+    slug = file_path.stem
+    tags: list[str] = []
+    body_start = 0
+    if text.startswith("---\n"):
+        end_marker = text.find("\n---\n", 4)
+        if end_marker != -1:
+            fm = text[4:end_marker]
+            body_start = end_marker + 5
+            for line in fm.splitlines():
+                line = line.strip()
+                if line.startswith("slug:"):
+                    slug = line.split(":", 1)[1].strip().strip("'\"")
+                elif line.startswith("tags:"):
+                    # tags can be `tags: [a, b]` or `tags:\n  - a\n  - b`. Handle inline form.
+                    raw = line.split(":", 1)[1].strip()
+                    if raw.startswith("[") and raw.endswith("]"):
+                        tags = [t.strip().strip("'\"") for t in raw[1:-1].split(",") if t.strip()]
+
+    body = text[body_start:].lstrip("\n").rstrip()
+    first_para = body[:500]
+    tag_str = ", ".join(tags) if tags else ""
+    return f"{slug} [{tag_str}]\n\n{first_para}"
+
+
+def full_sync(vault_path: Path | str, *, rebuild: bool = False) -> dict:
+    """Detect drift + (optionally) enqueue drifted entries for re-embed.
+
+    Default mode (`rebuild=False`): pure-read inventory. Returns summary dict:
+        {
+            "drifted_count": N,
+            "up_to_date_count": M,
+            "not_indexed_count": K,
+            "drifted": [<rel>, ...],
+            "not_indexed": [<rel>, ...],
+            "enqueued": 0,
+        }
+
+    `rebuild=True`: enqueues every drifted + not_indexed entry to the
+    embedding-queue.jsonl. Subsequent `drain` processes them via the
+    existing async embed-then-upsert path. Returns the same dict shape
+    with `enqueued` reflecting how many were appended to the queue.
+
+    Graceful-skip: if sqlite-vec is unavailable, `find_drifted_entries`
+    returns everything as `not_indexed`; the function still walks + reports;
+    `--rebuild` still enqueues (queue is a JSONL append; sqlite-vec not
+    required for enqueueing — required only for drain). Operator can
+    install sqlite-vec later + drain processes the queue then.
+
+    Per V4 #37 / plan #21 task 4.
+    """
+    vault = Path(vault_path)
+    inventory = find_drifted_entries(vault)
+    drifted = inventory["drifted"]
+    up_to_date = inventory["up_to_date"]
+    not_indexed = inventory["not_indexed"]
+
+    result = {
+        "drifted_count": len(drifted),
+        "up_to_date_count": len(up_to_date),
+        "not_indexed_count": len(not_indexed),
+        "drifted": drifted,
+        "not_indexed": not_indexed,
+        "enqueued": 0,
+    }
+
+    if not rebuild:
+        return result
+
+    # rebuild=True: enqueue drifted + not_indexed for re-embed.
+    enqueued = 0
+    to_enqueue = drifted + not_indexed
+    for rel_path in to_enqueue:
+        src = _resolve_entry_path(vault, rel_path)
+        embed_text = _extract_embed_text_from_file(src)
+        try:
+            enqueue(vault, rel_path, "upsert", text=embed_text)
+            enqueued += 1
+        except Exception as exc:  # pragma: no cover
+            print(f"[vec_index] enqueue failed for {rel_path}: {exc}", file=sys.stderr)
+
+    result["enqueued"] = enqueued
+    return result
+
+
 def rebuild_index(vault_path: Path | str) -> dict:
     """Drop + recreate the vec-index virtual table at current EMBEDDING_DIM.
 
@@ -737,6 +837,19 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
             "appears)"
         ),
     )
+    fs_p = sub.add_parser(
+        "full-sync",
+        help=(
+            "detect drift across the vault (V4 #37). Default reports "
+            "summary; --rebuild enqueues drifted + not-indexed entries "
+            "for re-embed on next drain."
+        ),
+    )
+    fs_p.add_argument(
+        "--rebuild",
+        action="store_true",
+        help="enqueue drifted + not-indexed entries; subsequent drain refreshes",
+    )
     return parser.parse_args(argv)
 
 
@@ -775,6 +888,10 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(stats))
             return 2  # Distinct exit for graceful-skip.
         print(json.dumps(stats))
+        return 0
+    if args.cmd == "full-sync":
+        result = full_sync(vault, rebuild=args.rebuild)
+        print(json.dumps(result))
         return 0
     return 1  # pragma: no cover
 
