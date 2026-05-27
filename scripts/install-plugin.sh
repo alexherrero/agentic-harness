@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# install-plugin.sh — install a crickets plugin to Antigravity's user-global
+# install-plugin.sh — install an agentm plugin to Antigravity's user-global
 # plugins directory (`~/.gemini/config/plugins/<plugin-name>/`).
 #
-# Unlike crickets/install.sh which installs into a target PROJECT, this script
+# Unlike agentm/install.sh which installs into a target PROJECT, this script
 # installs a plugin user-globally so agy can discover it from any workspace.
+#
+# Moved from crickets to agentm in v4.0.0 / V4 #36 (compound + plugin
+# customizations consolidated under agentm). Source plugins now live at
+# agentm/harness/plugins/<name>/ rather than crickets/plugins/<name>/.
 #
 # Usage:
 #   bash install-plugin.sh <plugin-name>           # install one plugin
@@ -12,7 +16,7 @@
 #   bash install-plugin.sh --help
 #
 # What it does:
-#   1. Reads crickets/plugins/<name>/plugin.md (toolkit-side YAML manifest).
+#   1. Reads agentm/harness/plugins/<name>/plugin.md (YAML manifest).
 #   2. Generates plugin.json (JSON form for agy) from the YAML frontmatter.
 #   3. Copies the plugin tree to ~/.gemini/config/plugins/<name>/:
 #        - plugin.json (generated)
@@ -20,8 +24,8 @@
 #        - any other nested content (references/, examples/, policies/)
 #   4. Prints a verification command (agy plugin list).
 #
-# Added v1.2.0 per ADR 0011. See wiki/how-to/Add-A-Plugin.md for the authoring
-# walkthrough.
+# Added crickets v1.2.0 per ADR 0011; moved to agentm in v4.0.0 / V4 #36.
+# See wiki/how-to/Add-A-Plugin.md for the authoring walkthrough.
 
 set -euo pipefail
 
@@ -66,9 +70,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# ── locate toolkit + plugins dir ──────────────────────────────────────────
-TOOLKIT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SRC_PLUGINS="$TOOLKIT_ROOT/plugins"
+# ── locate harness + plugins dir ──────────────────────────────────────────
+HARNESS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SRC_PLUGINS="$HARNESS_ROOT/harness/plugins"
 
 # Antigravity plugins root (user-global, legacy ~/.gemini/ path retained per
 # agy v1.0.2 conventions).
@@ -76,7 +80,7 @@ DEST_ROOT="$HOME/.gemini/config/plugins"
 
 # ── list mode ─────────────────────────────────────────────────────────────
 if [[ "$ACTION" == "list" ]]; then
-    echo "==> available crickets plugins (source: $SRC_PLUGINS):"
+    echo "==> available agentm plugins (source: $SRC_PLUGINS):"
     if [[ ! -d "$SRC_PLUGINS" ]]; then
         echo "    (no plugins directory yet)"
     else
@@ -92,7 +96,7 @@ if [[ "$ACTION" == "list" ]]; then
         done
     fi
     echo ""
-    echo "==> installed crickets plugins (dest: $DEST_ROOT):"
+    echo "==> installed agentm plugins (dest: $DEST_ROOT):"
     if [[ ! -d "$DEST_ROOT" ]]; then
         echo "    (no plugins installed yet)"
     else

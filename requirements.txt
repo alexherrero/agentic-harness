@@ -1,0 +1,30 @@
+# agentm Python dependencies.
+#
+# Installed by install.sh / install.ps1 by default; opt out with
+# --no-python-deps if you prefer to manage Python deps yourself
+# (virtualenv, conda, system package manager, etc.).
+#
+# Manual install (if you skipped --no-python-deps install or are
+# setting up without running install.sh):
+#   python3 -m pip install --user -r requirements.txt
+# On PEP 668 systems (Debian 12+, Ubuntu 24+, recent macOS system
+# Python) you may need:
+#   python3 -m pip install --user --break-system-packages -r requirements.txt
+# Or use a virtualenv:
+#   python3 -m venv .venv && source .venv/bin/activate
+#   python3 -m pip install -r requirements.txt
+
+pyyaml>=6.0           # scripts/manifest-info.py, scripts/check-references.py,
+                      # harness/skills/memory/scripts/evolve.py
+sqlite-vec>=0.1.0     # harness/skills/memory/scripts/vec_index.py — sqlite-vec
+                      # SQLite extension for vec-index storage + similarity
+                      # search.
+sentence-transformers>=2.0  # harness/skills/memory/scripts/embed.py — local
+                            # embedding (BGE-large default; ~1.3GB BGE-large
+                            # model downloads lazily on first invocation;
+                            # PyTorch + transformers + tokenizers are
+                            # transitive deps).
+
+# Note: as of v4.0.0 (V4 #36 reorg), agentm absorbed the memory skill +
+# memory hooks + embedding stack from crickets. crickets v2.0.0+ ships
+# pyyaml only; these heavier deps live here now.

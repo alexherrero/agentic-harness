@@ -94,7 +94,13 @@ if ($Update) {
 
 $BoundaryRoots = @(
     (Join-Path $HarnessRoot 'templates'),
-    (Join-Path $HarnessRoot 'adapters')
+    (Join-Path $HarnessRoot 'adapters'),
+    # V4 #36: compound customizations imported from crickets live at
+    # harness/{skills,hooks,agents,plugins}/. The new dispatcher block
+    # (see "compound customizations" section below) reads from these.
+    (Join-Path $HarnessRoot 'harness/skills'),
+    (Join-Path $HarnessRoot 'harness/hooks'),
+    (Join-Path $HarnessRoot 'harness/agents')
 )
 
 . (Join-Path $HarnessRoot 'lib/install/pwsh/primitives.ps1')
@@ -112,6 +118,9 @@ $BoundaryRoots = @(
 # progress.md, etc.) and settings.json files are not in the dirs below.
 $ManagedParents = @(
     '.claude/commands', '.claude/agents', '.claude/skills',
+    # V4 #36: compound hooks (memory-*, evidence-tracker) imported from
+    # crickets land at .claude/hooks/ via the manifest dispatcher.
+    '.claude/hooks',
     '.agent/rules', '.agent/workflows', '.agent/skills',
     '.agents/skills',
     '.codex/agents',
@@ -168,6 +177,184 @@ Copy-UserFile     (Join-Path $HarnessRoot 'adapters/gemini/settings.json') '.gem
 
 # ── wiki/ scaffold (per-file walk, skip-if-exists) ──────────────────────────
 Copy-UserWalk (Join-Path $HarnessRoot 'templates/wiki') 'wiki'
+
+# ── compound customizations (V4 #36) ───────────────────────────────────────
+#
+# Walks harness/skills/<dir>/SKILL.md, harness/hooks/<dir>/hook.md, and
+# harness/agents/<file>.md, dispatching each based on its supported_hosts
+# field. Imported from crickets in v4.0.0 per design call #28 of plan #18:
+# compound skills (memory, design, diataxis-author, ship-release), memory
+# hooks (memory-recall-*, memory-reflect-*), the evidence-tracker hook,
+# and the memory-idea-researcher sub-agent.
+#
+# Only dispatches entries with crickets-shape frontmatter (kind: <type> +
+# supported_hosts: <list>). Legacy agentm single-file skills (doctor.md,
+# migrate-to-diataxis.md) and legacy sub-agents (adversarial-reviewer.md
+# etc.) at harness/skills/*.md and harness/agents/*.md without frontmatter
+# flow through the adapters/ pipeline above and are skipped here.
+
+function Get-AmManifestField([string]$File, [string]$Field) {
+    # Cheap YAML field extractor — independent of pyyaml.
+    if (-not (Test-Path -LiteralPath $File)) { return '' }
+    $inFm = $false
+    $firstDashSeen = $false
+    foreach ($line in (Get-Content -LiteralPath $File)) {
+        if ($line -match '^---\s*$') {
+            if (-not $firstDashSeen) { $firstDashSeen = $true; $inFm = $true; continue }
+            break
+        }
+        if ($inFm -and $line -match "^$([regex]::Escape($Field))\s*:\s*(.*)$") {
+            $val = $Matches[1]
+            $val = $val -replace '\s*#.*$', ''
+            $val = $val.Trim()
+            $val = $val -replace '^\[|\]$', ''
+            return $val.Trim()
+        }
+    }
+    return ''
+}
+
+function Invoke-AmDispatchSkill([string]$SkillDir, [string]$Name, [string]$Hosts) {
+    foreach ($h in ($Hosts -split ',')) {
+        $h = $h.Trim()
+        if (-not $h) { continue }
+        switch ($h) {
+            'claude-code' {
+                New-Item -ItemType Directory -Path '.claude/skills' -Force | Out-Null
+                Copy-ManagedDir $SkillDir (Join-Path '.claude/skills' $Name)
+            }
+            'antigravity' {
+                New-Item -ItemType Directory -Path '.agents/skills' -Force | Out-Null
+                Copy-ManagedDir $SkillDir (Join-Path '.agents/skills' $Name)
+            }
+            default {
+                Write-Warning "skill '$Name': unknown host '$h' - skipped"
+            }
+        }
+    }
+}
+
+function Invoke-AmDispatchHook([string]$HookDir, [string]$Name, [string]$Hosts) {
+    foreach ($h in ($Hosts -split ',')) {
+        $h = $h.Trim()
+        if (-not $h) { continue }
+        switch ($h) {
+            'claude-code' {
+                New-Item -ItemType Directory -Path '.claude/hooks' -Force | Out-Null
+                $scriptSrc = Join-Path $HookDir "$Name.ps1"
+                if (-not (Test-Path -LiteralPath $scriptSrc)) {
+                    Write-Warning "hook '$Name' missing $Name.ps1 - skipped"
+                    continue
+                }
+                Copy-ManagedFile $scriptSrc (Join-Path '.claude/hooks' "$Name.ps1")
+                # Copy sibling .py helpers (evidence-tracker pattern).
+                Get-ChildItem -Path $HookDir -Filter '*.py' -File -ErrorAction SilentlyContinue | ForEach-Object {
+                    Copy-ManagedFile $_.FullName (Join-Path '.claude/hooks' $_.Name)
+                }
+                # Merge pwsh settings fragment idempotently.
+                $frag = Join-Path $HookDir 'settings-fragment-pwsh.json'
+                if ((Test-Path -LiteralPath $frag) -and (Get-Command python3 -ErrorAction SilentlyContinue)) {
+                    New-Item -ItemType Directory -Path '.claude' -Force | Out-Null
+                    try {
+                        & python3 (Join-Path $HarnessRoot 'scripts/merge-settings-fragment.py') '.claude/settings.json' $frag 2>$null
+                    } catch {
+                        Write-Warning "failed to merge settings fragment for hook '$Name': $_"
+                    }
+                }
+            }
+            'antigravity' {
+                # Antigravity has no first-class hook surface (ADR 0009).
+                # Silently skip — hook author opted into both hosts; we
+                # honor claude-code and no-op the antigravity side.
+            }
+            default {
+                Write-Warning "hook '$Name': unknown host '$h' - skipped"
+            }
+        }
+    }
+}
+
+function Invoke-AmDispatchAgent([string]$AgentMd, [string]$Name, [string]$Hosts) {
+    foreach ($h in ($Hosts -split ',')) {
+        $h = $h.Trim()
+        if (-not $h) { continue }
+        switch ($h) {
+            'claude-code' {
+                New-Item -ItemType Directory -Path '.claude/agents' -Force | Out-Null
+                Copy-ManagedFile $AgentMd (Join-Path '.claude/agents' "$Name.md")
+            }
+            'antigravity' {
+                # Sub-agent-as-skill pattern.
+                $wrap = Join-Path '.agents/skills' $Name
+                New-Item -ItemType Directory -Path $wrap -Force | Out-Null
+                Copy-ManagedFile $AgentMd (Join-Path $wrap 'SKILL.md')
+            }
+            default {
+                Write-Warning "agent '$Name': unknown host '$h' - skipped"
+            }
+        }
+    }
+}
+
+# Walk compound skills.
+$amSkillsRoot = Join-Path $HarnessRoot 'harness/skills'
+if (Test-Path -LiteralPath $amSkillsRoot -PathType Container) {
+    Get-ChildItem -LiteralPath $amSkillsRoot -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+        $d = $_.FullName
+        $manifest = Join-Path $d 'SKILL.md'
+        if (-not (Test-Path -LiteralPath $manifest)) { return }
+        $kind = Get-AmManifestField $manifest 'kind'
+        if ($kind -ne 'skill') { return }
+        $name = $_.Name
+        $hosts = Get-AmManifestField $manifest 'supported_hosts'
+        if (-not $hosts) {
+            Write-Warning "skill '$name' has no supported_hosts - skipped"
+            return
+        }
+        Write-Host "==> installing compound skill: $name"
+        Invoke-AmDispatchSkill $d $name $hosts
+    }
+}
+
+# Walk compound hooks.
+$amHooksRoot = Join-Path $HarnessRoot 'harness/hooks'
+if (Test-Path -LiteralPath $amHooksRoot -PathType Container) {
+    Get-ChildItem -LiteralPath $amHooksRoot -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+        $d = $_.FullName
+        $manifest = Join-Path $d 'hook.md'
+        if (-not (Test-Path -LiteralPath $manifest)) { return }
+        $kind = Get-AmManifestField $manifest 'kind'
+        if ($kind -ne 'hook') { return }
+        $name = $_.Name
+        $hosts = Get-AmManifestField $manifest 'supported_hosts'
+        if (-not $hosts) {
+            Write-Warning "hook '$name' has no supported_hosts - skipped"
+            return
+        }
+        Write-Host "==> installing compound hook: $name"
+        Invoke-AmDispatchHook $d $name $hosts
+    }
+}
+
+# Walk compound agents. Only crickets-shape manifests (with kind: agent
+# in frontmatter) are dispatched; legacy agentm sub-agents at
+# harness/agents/*.md without frontmatter flow through adapters/.
+$amAgentsRoot = Join-Path $HarnessRoot 'harness/agents'
+if (Test-Path -LiteralPath $amAgentsRoot -PathType Container) {
+    Get-ChildItem -LiteralPath $amAgentsRoot -Filter '*.md' -File -ErrorAction SilentlyContinue | ForEach-Object {
+        $f = $_.FullName
+        $kind = Get-AmManifestField $f 'kind'
+        if ($kind -ne 'agent') { return }
+        $name = $_.BaseName
+        $hosts = Get-AmManifestField $f 'supported_hosts'
+        if (-not $hosts) {
+            Write-Warning "agent '$name' has no supported_hosts - skipped"
+            return
+        }
+        Write-Host "==> installing compound agent: $name"
+        Invoke-AmDispatchAgent $f $name $hosts
+    }
+}
 
 # ── .github/workflows/wiki-sync.yml — managed ───────────────────────────────
 Copy-ManagedFile (Join-Path $HarnessRoot 'templates/.github/workflows/wiki-sync.yml') '.github/workflows/wiki-sync.yml'

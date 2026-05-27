@@ -102,6 +102,12 @@ fi
 BOUNDARY_ROOTS=(
   "$HARNESS_ROOT/templates"
   "$HARNESS_ROOT/adapters"
+  # V4 #36: compound customizations imported from crickets live at
+  # harness/{skills,hooks,agents,plugins}/. The new dispatcher block
+  # (see "compound customizations" section below) reads from these.
+  "$HARNESS_ROOT/harness/skills"
+  "$HARNESS_ROOT/harness/hooks"
+  "$HARNESS_ROOT/harness/agents"
 )
 
 # shellcheck source=lib/install/bash/primitives.sh
@@ -124,6 +130,9 @@ MANAGED_PARENTS=(
   .claude/commands
   .claude/agents
   .claude/skills
+  .claude/hooks      # V4 #36: compound hooks (memory-*, evidence-tracker)
+                     # imported from crickets land here via the manifest
+                     # dispatcher.
   .agent/rules
   .agent/workflows
   .agent/skills
@@ -238,6 +247,194 @@ cp_user "$HARNESS_ROOT/adapters/gemini/settings.json" ".gemini/settings.json"
 # Source: $HARNESS_ROOT/templates/wiki/ (NOT $HARNESS_ROOT/wiki/ — that's
 # this repo's own dogfooded docs and never ships to targets).
 cp_user_walk "$HARNESS_ROOT/templates/wiki" "wiki"
+
+# ── compound customizations (V4 #36) ───────────────────────────────────────
+#
+# Walks harness/skills/<dir>/SKILL.md, harness/hooks/<dir>/hook.md, and
+# harness/agents/<file>.md, dispatching each based on its supported_hosts
+# field. Imported from crickets in v4.0.0 per design call #28 of plan #18:
+# compound skills (memory, design, diataxis-author, ship-release), memory
+# hooks (memory-recall-*, memory-reflect-*), the evidence-tracker hook,
+# and the memory-idea-researcher sub-agent.
+#
+# Only dispatches entries with crickets-shape frontmatter (kind: <type> +
+# supported_hosts: <list>). Legacy agentm single-file skills (doctor.md,
+# migrate-to-diataxis.md) and legacy sub-agents (adversarial-reviewer.md
+# etc.) at harness/skills/*.md and harness/agents/*.md without frontmatter
+# flow through the adapters/ pipeline above and are skipped here.
+
+_am_get_field() {
+    # Cheap YAML field extractor — keeps dispatch independent of pyyaml.
+    # Reads the first value of <field>: from the file's YAML frontmatter.
+    # Strips list brackets so `[claude-code, antigravity]` returns
+    # `claude-code, antigravity`.
+    local file="$1" field="$2"
+    awk -v field="$field" '
+        BEGIN { in_fm = 0; first_dash_seen = 0 }
+        /^---$/ {
+            if (!first_dash_seen) { first_dash_seen = 1; in_fm = 1; next }
+            in_fm = 0; exit
+        }
+        in_fm {
+            if (match($0, "^" field "[[:space:]]*:[[:space:]]*")) {
+                v = substr($0, RLENGTH + 1)
+                sub(/[[:space:]]*#.*$/, "", v)
+                gsub(/^\[|\]$/, "", v)
+                print v
+                exit
+            }
+        }
+    ' "$file"
+}
+
+_am_dispatch_skill() {
+    local skill_dir="$1" name="$2" hosts="$3"
+    local h
+    while IFS= read -r h; do
+        h="${h## }"; h="${h%% }"
+        [[ -z "$h" ]] && continue
+        case "$h" in
+            claude-code)
+                mkdir -p .claude/skills
+                cp_managed_dir "$skill_dir" ".claude/skills/$name"
+                ;;
+            antigravity)
+                mkdir -p .agents/skills
+                cp_managed_dir "$skill_dir" ".agents/skills/$name"
+                ;;
+            *)
+                echo "    WARN: skill '$name': unknown host '$h' — skipped" >&2
+                ;;
+        esac
+    done < <(echo "$hosts" | tr ',' '\n')
+}
+
+_am_dispatch_hook() {
+    local hook_dir="$1" name="$2" hosts="$3"
+    local h
+    while IFS= read -r h; do
+        h="${h## }"; h="${h%% }"
+        [[ -z "$h" ]] && continue
+        case "$h" in
+            claude-code)
+                mkdir -p .claude/hooks
+                local script_src="$hook_dir/$name.sh"
+                if [[ ! -f "$script_src" ]]; then
+                    echo "    WARN: hook '$name' missing $name.sh — skipped" >&2
+                    continue
+                fi
+                cp_managed "$script_src" ".claude/hooks/$name.sh"
+                chmod +x ".claude/hooks/$name.sh"
+                # Copy sibling .py helpers (evidence-tracker ships
+                # evidence_tracker.py alongside its .sh).
+                local py
+                for py in "$hook_dir"/*.py; do
+                    [[ -e "$py" ]] || continue
+                    cp_managed "$py" ".claude/hooks/$(basename "$py")"
+                done
+                # Merge bash settings fragment idempotently.
+                local frag="$hook_dir/settings-fragment-bash.json"
+                if [[ -f "$frag" ]] && command -v python3 >/dev/null 2>&1; then
+                    mkdir -p .claude
+                    python3 "$HARNESS_ROOT/scripts/merge-settings-fragment.py" \
+                        .claude/settings.json "$frag" 2>/dev/null \
+                        || echo "    WARN: failed to merge settings fragment for hook '$name'" >&2
+                fi
+                ;;
+            antigravity)
+                # Antigravity has no first-class hook surface (ADR 0009).
+                # Silently skip — hook author opted into both hosts; we
+                # honor claude-code and no-op the antigravity side.
+                ;;
+            *)
+                echo "    WARN: hook '$name': unknown host '$h' — skipped" >&2
+                ;;
+        esac
+    done < <(echo "$hosts" | tr ',' '\n')
+}
+
+_am_dispatch_agent() {
+    local agent_md="$1" name="$2" hosts="$3"
+    local h
+    while IFS= read -r h; do
+        h="${h## }"; h="${h%% }"
+        [[ -z "$h" ]] && continue
+        case "$h" in
+            claude-code)
+                mkdir -p .claude/agents
+                cp_managed "$agent_md" ".claude/agents/$name.md"
+                ;;
+            antigravity)
+                # Sub-agent-as-skill pattern (no first-class sub-agent slot
+                # in Antigravity 2.0 — wrap the agent md as a skill).
+                mkdir -p ".agents/skills/$name"
+                cp_managed "$agent_md" ".agents/skills/$name/SKILL.md"
+                ;;
+            *)
+                echo "    WARN: agent '$name': unknown host '$h' — skipped" >&2
+                ;;
+        esac
+    done < <(echo "$hosts" | tr ',' '\n')
+}
+
+# Walk compound skills.
+if [[ -d "$HARNESS_ROOT/harness/skills" ]]; then
+    for _am_d in "$HARNESS_ROOT/harness/skills"/*/; do
+        [[ -d "$_am_d" ]] || continue
+        _am_manifest="${_am_d}SKILL.md"
+        [[ -f "$_am_manifest" ]] || continue
+        _am_kind="$(_am_get_field "$_am_manifest" kind)"
+        [[ "$_am_kind" == "skill" ]] || continue
+        _am_name="$(basename "$_am_d")"
+        _am_hosts="$(_am_get_field "$_am_manifest" supported_hosts)"
+        if [[ -z "$_am_hosts" ]]; then
+            echo "    WARN: skill '$_am_name' has no supported_hosts — skipped" >&2
+            continue
+        fi
+        echo "==> installing compound skill: $_am_name"
+        _am_dispatch_skill "${_am_d%/}" "$_am_name" "$_am_hosts"
+    done
+fi
+
+# Walk compound hooks.
+if [[ -d "$HARNESS_ROOT/harness/hooks" ]]; then
+    for _am_d in "$HARNESS_ROOT/harness/hooks"/*/; do
+        [[ -d "$_am_d" ]] || continue
+        _am_manifest="${_am_d}hook.md"
+        [[ -f "$_am_manifest" ]] || continue
+        _am_kind="$(_am_get_field "$_am_manifest" kind)"
+        [[ "$_am_kind" == "hook" ]] || continue
+        _am_name="$(basename "$_am_d")"
+        _am_hosts="$(_am_get_field "$_am_manifest" supported_hosts)"
+        if [[ -z "$_am_hosts" ]]; then
+            echo "    WARN: hook '$_am_name' has no supported_hosts — skipped" >&2
+            continue
+        fi
+        echo "==> installing compound hook: $_am_name"
+        _am_dispatch_hook "${_am_d%/}" "$_am_name" "$_am_hosts"
+    done
+fi
+
+# Walk compound agents. Only crickets-shape manifests (with kind: agent in
+# frontmatter) are dispatched; legacy agentm sub-agents at
+# harness/agents/*.md without frontmatter flow through adapters/.
+if [[ -d "$HARNESS_ROOT/harness/agents" ]]; then
+    for _am_f in "$HARNESS_ROOT/harness/agents"/*.md; do
+        [[ -f "$_am_f" ]] || continue
+        _am_kind="$(_am_get_field "$_am_f" kind)"
+        [[ "$_am_kind" == "agent" ]] || continue
+        _am_name="$(basename "$_am_f" .md)"
+        _am_hosts="$(_am_get_field "$_am_f" supported_hosts)"
+        if [[ -z "$_am_hosts" ]]; then
+            echo "    WARN: agent '$_am_name' has no supported_hosts — skipped" >&2
+            continue
+        fi
+        echo "==> installing compound agent: $_am_name"
+        _am_dispatch_agent "$_am_f" "$_am_name" "$_am_hosts"
+    done
+fi
+
+unset _am_d _am_f _am_manifest _am_kind _am_name _am_hosts
 
 # ── .github/workflows/wiki-sync.yml — managed (refreshed on --update) ───────
 mkdir -p .github/workflows

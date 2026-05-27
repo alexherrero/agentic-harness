@@ -7,3 +7,7 @@ node_modules/
 .release-notes.md
 .claude/scheduled_tasks.lock
 .claude/worktrees/
+
+# Python build artifacts (memory skill scripts compile on first run)
+__pycache__/
+*.pyc
