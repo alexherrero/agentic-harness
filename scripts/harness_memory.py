@@ -424,6 +424,137 @@ def _write_legacy_state_file(project_root: Path, filename: str, content: str) ->
     return target
 
 
+# -----------------------------------------------------------------------------
+# Concurrency primitives (V4 #26 task 4)
+# -----------------------------------------------------------------------------
+
+class ConcurrentModificationError(RuntimeError):
+    """Raised by safe_write_replace_style when a file's mtime changed between
+    read and write — indicates another agent / device modified the file.
+
+    Caller is expected to re-read + re-apply changes + retry. Per plan #18
+    task 8 (`08-concurrency.md` § "Replace-style files — cursor + last-modified
+    check").
+    """
+
+
+def safe_write_replace_style(
+    path: Path,
+    new_content: str,
+    *,
+    expected_mtime: Optional[float] = None,
+) -> Path:
+    """Write `new_content` to `path` atomically with optional mtime-check.
+
+    Modes:
+      - `expected_mtime is None` (default): plain atomic write — no
+        concurrent-modification check. Caller didn't observe prior mtime.
+      - `expected_mtime is not None`: pre-write check — re-stat `path`; if
+        its current mtime differs from expected, raise
+        ConcurrentModificationError without writing.
+
+    The mtime-check guards against device-A vs device-B concurrent edits
+    when both have GDrive-synced views of the same vault file. Caller
+    pattern:
+
+        current_mtime = path.stat().st_mtime if path.exists() else None
+        # ... compute new_content ...
+        safe_write_replace_style(path, new_content, expected_mtime=current_mtime)
+
+    Atomic via `<path>.tmp` + os.replace. Creates parent dir if absent.
+    Returns the written path.
+
+    Race window: between the mtime re-stat and the rename, another process
+    could write. Documented limitation per plan #18 task 8 — bounded by
+    cursor-tracked promotion + the size of the rename-window (sub-ms).
+    Suitable for replace-style files (PLAN.md, _index.md, features.json,
+    FOLLOWUPS.md); NOT suitable for append-only files (progress.md) — those
+    use natural-merge via GDrive's append-handling.
+    """
+    path = Path(path)
+    if expected_mtime is not None and path.exists():
+        actual = path.stat().st_mtime
+        if abs(actual - expected_mtime) > 1e-6:  # float-tolerance
+            raise ConcurrentModificationError(
+                f"{path} was modified since read (expected mtime={expected_mtime}, "
+                f"actual={actual}). Another agent or device wrote to it. "
+                f"Re-read and re-apply changes."
+            )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(new_content, encoding="utf-8")
+    tmp.replace(path)
+    return path
+
+
+# GDrive's conflict-file naming: "<basename> (conflicted copy YYYY-MM-DD) - <device>.<ext>"
+# Heuristic substring match — robust to GDrive's variations (with/without
+# trailing device name; with/without date hyphens; "from <device>" variants).
+_CONFLICT_MARKER = "(conflicted copy"
+
+
+def detect_conflict_files(vault_root: Path) -> list[dict]:
+    """Walk `vault_root` for GDrive-induced conflict files.
+
+    Returns a list of dicts:
+        [{"conflict": <conflict-file-path>,
+          "base": <inferred-base-file-path>,
+          "rel": <relative-to-vault-root>}, ...]
+
+    The `base` field is the operator-canonical filename the conflict pairs
+    with — stripping the GDrive marker. Example:
+        conflict = ".../PLAN (conflicted copy 2026-05-27) - Mac.md"
+        base     = ".../PLAN.md"
+
+    The dispatcher hook (task-4 conflict-merger-session-start) walks this
+    list at SessionStart and surfaces an operator-confirm dialog per pair.
+
+    Heuristic: matches `(conflicted copy` substring (case-insensitive).
+    Limitations: GDrive may change the format without notice — re-audit if
+    detection ratio drops. Detection is best-effort; false-negatives are
+    acceptable (operator finds the conflict file in Obsidian).
+    """
+    vault_root = Path(vault_root)
+    if not vault_root.is_dir():
+        return []
+
+    out: list[dict] = []
+    # rglob is recursive; uses depth-first. Safe for vault sizes <10k files.
+    for conflict in vault_root.rglob("*"):
+        if not conflict.is_file():
+            continue
+        name_lower = conflict.name.lower()
+        if _CONFLICT_MARKER.lower() not in name_lower:
+            continue
+        base = _infer_conflict_base_path(conflict)
+        out.append({
+            "conflict": conflict,
+            "base": base,
+            "rel": conflict.relative_to(vault_root),
+        })
+    return out
+
+
+def _infer_conflict_base_path(conflict: Path) -> Path:
+    """Strip GDrive conflict markers from a filename to derive the base path.
+
+    Examples:
+        "PLAN (conflicted copy 2026-05-27).md"          → "PLAN.md"
+        "PLAN (conflicted copy 2026-05-27) - Mac.md"    → "PLAN.md"
+        "PLAN (conflicted copy 2026-05-27 from iPad).md" → "PLAN.md"
+
+    Heuristic: regex-strip ` (conflicted copy ...).<ext>` segment.
+    Returns Path with the same parent + stripped basename.
+    """
+    import re
+    pattern = re.compile(
+        r"\s*\(conflicted copy[^)]*\)(\s*-\s*[^.]+)?",
+        re.IGNORECASE,
+    )
+    cleaned = pattern.sub("", conflict.name)
+    return conflict.parent / cleaned
+
+
 def toolkit_scripts_dir() -> Optional[Path]:
     """Locate the memory skill scripts dir, or None if not installed.
 

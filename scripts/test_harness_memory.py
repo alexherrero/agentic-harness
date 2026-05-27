@@ -775,5 +775,132 @@ class TestWriteStateFile(unittest.TestCase):
             self.assertFalse((vp / "_harness" / "PLAN.md").exists())
 
 
+# -----------------------------------------------------------------------------
+# safe_write_replace_style / detect_conflict_files  (V4 #26 task 4)
+# -----------------------------------------------------------------------------
+
+class TestSafeWriteReplaceStyle(unittest.TestCase):
+    """Covers atomic-write with optional mtime concurrent-modification check."""
+
+    def test_plain_write_no_mtime_check(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "PLAN.md"
+            result = hm.safe_write_replace_style(path, "content")
+            self.assertEqual(result, path)
+            self.assertEqual(path.read_text(), "content")
+
+    def test_overwrites_existing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "PLAN.md"
+            path.write_text("old")
+            hm.safe_write_replace_style(path, "new")
+            self.assertEqual(path.read_text(), "new")
+
+    def test_creates_parent_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "nested" / "deep" / "PLAN.md"
+            hm.safe_write_replace_style(path, "x")
+            self.assertTrue(path.is_file())
+
+    def test_mtime_check_passes_when_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "PLAN.md"
+            path.write_text("initial")
+            mtime = path.stat().st_mtime
+            # Write with matching expected_mtime succeeds.
+            hm.safe_write_replace_style(path, "updated", expected_mtime=mtime)
+            self.assertEqual(path.read_text(), "updated")
+
+    def test_mtime_check_raises_when_modified(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "PLAN.md"
+            path.write_text("initial")
+            # Simulate "I read it earlier" with a stale mtime.
+            stale_mtime = path.stat().st_mtime - 1000.0  # an hour ago
+            with self.assertRaises(hm.ConcurrentModificationError) as cm:
+                hm.safe_write_replace_style(path, "x", expected_mtime=stale_mtime)
+            self.assertIn("modified since read", str(cm.exception))
+            # File contents unchanged.
+            self.assertEqual(path.read_text(), "initial")
+
+    def test_mtime_check_passes_when_file_absent_originally(self) -> None:
+        """First-write case: expected_mtime is provided but file doesn't exist
+        yet — check should pass (nothing to conflict with) and proceed."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "PLAN.md"
+            hm.safe_write_replace_style(path, "x", expected_mtime=12345.0)
+            self.assertEqual(path.read_text(), "x")
+
+    def test_atomic_no_tmp_remnant(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "PLAN.md"
+            hm.safe_write_replace_style(path, "x")
+            self.assertEqual(list(Path(tmp).glob("PLAN.md.*")), [])
+
+
+class TestDetectConflictFiles(unittest.TestCase):
+    """Covers GDrive conflict-file detection + base-path inference."""
+
+    def test_returns_empty_when_no_conflicts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "PLAN.md").write_text("clean")
+            self.assertEqual(hm.detect_conflict_files(Path(tmp)), [])
+
+    def test_returns_empty_for_nonexistent_vault(self) -> None:
+        self.assertEqual(hm.detect_conflict_files(Path("/nonexistent/path")), [])
+
+    def test_detects_basic_conflict_marker(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "PLAN.md").write_text("base")
+            conflict = Path(tmp) / "PLAN (conflicted copy 2026-05-27).md"
+            conflict.write_text("conflict")
+            result = hm.detect_conflict_files(Path(tmp))
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["conflict"], conflict)
+        self.assertEqual(result[0]["base"], Path(tmp) / "PLAN.md")
+
+    def test_detects_with_device_suffix(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            conflict = Path(tmp) / "PLAN (conflicted copy 2026-05-27) - Mac.md"
+            conflict.write_text("x")
+            result = hm.detect_conflict_files(Path(tmp))
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["base"], Path(tmp) / "PLAN.md")
+
+    def test_detects_nested_conflicts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "projects" / "agentm" / "_harness").mkdir(parents=True)
+            conflict = Path(tmp) / "projects" / "agentm" / "_harness" / "PLAN (conflicted copy 2026-05-27).md"
+            conflict.write_text("nested")
+            result = hm.detect_conflict_files(Path(tmp))
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["conflict"], conflict)
+        # rel path computed against vault_root.
+        self.assertEqual(
+            str(result[0]["rel"]),
+            "projects/agentm/_harness/PLAN (conflicted copy 2026-05-27).md",
+        )
+
+    def test_detects_multiple_conflicts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "PLAN (conflicted copy 2026-05-27).md").write_text("a")
+            (Path(tmp) / "FOLLOWUPS (conflicted copy 2026-05-27).md").write_text("b")
+            result = hm.detect_conflict_files(Path(tmp))
+        self.assertEqual(len(result), 2)
+
+    def test_case_insensitive_marker(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "PLAN (Conflicted Copy 2026-05-27).md").write_text("x")
+            result = hm.detect_conflict_files(Path(tmp))
+        self.assertEqual(len(result), 1)
+
+    def test_ignores_files_without_marker(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "PLAN.md").write_text("clean")
+            (Path(tmp) / "progress.md").write_text("clean")
+            (Path(tmp) / "ROADMAP-V4.md").write_text("clean")
+            self.assertEqual(hm.detect_conflict_files(Path(tmp)), [])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
