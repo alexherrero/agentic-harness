@@ -3,7 +3,14 @@
 Adversarial critique of recent work. The framing is literal: **assume the code contains bugs, find them**. Neutral-prompted reviewers rubber-stamp; this phase is engineered to not do that.
 
 > [!NOTE]
-> **State-file resolution (V4 #26+).** Where this spec references state files by shortname (`PLAN.md`, `progress.md`, etc.), the actual on-disk location is resolved by `scripts/harness_memory.py`'s dispatcher chain: vault-backed `<vault>/projects/<slug>/_harness/<file>` (V4.1.0+ canonical) → legacy `<project>/.harness/<file>` (fallback). Review is read-only on state files; no write semantics apply.
+> **State-file resolution (V4 #26 + #37).** Review is read-only on state files. **Invoke the dispatcher CLI for reads — don't bare-`Read .harness/<file>`:**
+>
+> ```bash
+> python3 scripts/harness_memory.py read-state PLAN.md       # the in-flight plan
+> python3 scripts/harness_memory.py read-state progress.md   # what happened last
+> ```
+>
+> Dispatcher resolves vault path → legacy `<project>/.harness/<file>` fallback. No write semantics in this phase. Inline `.harness/<file>` refs in prose are shorthand.
 
 ## Purpose
 

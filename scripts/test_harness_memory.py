@@ -483,6 +483,102 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "")
 
+    # V4 #37 task 7: dispatcher CLI subcommands.
+
+    def test_cli_vault_state_path_resolves_post_v37_layout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project_root = Path(tmp) / "project"
+            project_root.mkdir()
+            (project_root / ".harness").mkdir()
+            (project_root / ".harness" / "project.json").write_text(
+                '{"vault_project": "fixture"}', encoding="utf-8"
+            )
+            vault = _make_vault_new_layout(Path(tmp), project="fixture")
+            result = self._run(
+                "vault-state-path", "PLAN.md",
+                "--project-root", str(project_root),
+                env_extra={"MEMORY_VAULT_PATH": str(vault)},
+            )
+        self.assertEqual(result.returncode, 0)
+        expected = str(vault / "projects" / "fixture" / "_harness" / "PLAN.md")
+        self.assertEqual(result.stdout.strip(), expected)
+
+    def test_cli_vault_state_path_exits_1_when_no_resolution(self) -> None:
+        """No slug + no vault → empty stdout + exit 1 (caller graceful-skips)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._run(
+                "vault-state-path", "PLAN.md",
+                "--project-root", tmp,
+            )
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, "")
+
+    def test_cli_read_state_returns_vault_content(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project_root = Path(tmp) / "project"
+            project_root.mkdir()
+            (project_root / ".harness").mkdir()
+            (project_root / ".harness" / "project.json").write_text(
+                '{"vault_project": "fixture"}', encoding="utf-8"
+            )
+            vault = _make_vault_new_layout(Path(tmp), project="fixture")
+            (vault / "projects" / "fixture" / "_harness").mkdir(parents=True)
+            (vault / "projects" / "fixture" / "_harness" / "PLAN.md").write_text(
+                "vault PLAN content\n", encoding="utf-8"
+            )
+            result = self._run(
+                "read-state", "PLAN.md",
+                "--project-root", str(project_root),
+                env_extra={"MEMORY_VAULT_PATH": str(vault)},
+            )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "vault PLAN content\n")
+
+    def test_cli_read_state_falls_back_to_legacy(self) -> None:
+        """Vault file absent → falls back to legacy <project>/.harness/<file>."""
+        with tempfile.TemporaryDirectory() as tmp:
+            project_root = Path(tmp) / "project"
+            project_root.mkdir()
+            (project_root / ".harness").mkdir()
+            (project_root / ".harness" / "project.json").write_text(
+                '{"vault_project": "fixture"}', encoding="utf-8"
+            )
+            (project_root / ".harness" / "PLAN.md").write_text(
+                "legacy PLAN content\n", encoding="utf-8"
+            )
+            vault = _make_vault_new_layout(Path(tmp), project="fixture")
+            result = self._run(
+                "read-state", "PLAN.md",
+                "--project-root", str(project_root),
+                env_extra={"MEMORY_VAULT_PATH": str(vault)},
+            )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "legacy PLAN content\n")
+        # Warn-once notice on stderr.
+        self.assertIn("legacy", result.stderr.lower())
+
+    def test_cli_write_state_writes_to_vault(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project_root = Path(tmp) / "project"
+            project_root.mkdir()
+            (project_root / ".harness").mkdir()
+            (project_root / ".harness" / "project.json").write_text(
+                '{"vault_project": "fixture"}', encoding="utf-8"
+            )
+            vault = _make_vault_new_layout(Path(tmp), project="fixture")
+            content_file = Path(tmp) / "input.md"
+            content_file.write_text("new vault content\n", encoding="utf-8")
+            result = self._run(
+                "write-state", "PLAN.md",
+                "--project-root", str(project_root),
+                "--content-file", str(content_file),
+                env_extra={"MEMORY_VAULT_PATH": str(vault)},
+            )
+            self.assertEqual(result.returncode, 0)
+            target = vault / "projects" / "fixture" / "_harness" / "PLAN.md"
+            self.assertEqual(result.stdout.strip(), str(target))
+            self.assertEqual(target.read_text(encoding="utf-8"), "new vault content\n")
+
 
 # -----------------------------------------------------------------------------
 # resolve_project / vault_state_path / _vault_projects_dir  (V4 #26)

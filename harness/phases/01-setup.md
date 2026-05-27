@@ -3,7 +3,20 @@
 First-time initialization of agentm in a project. Run once per project (or after a major restructure). Produces the harness state artifacts populated with real, project-specific values — not templates.
 
 > [!NOTE]
-> **State-file resolution (V4 #26+).** Where this spec references state files by shortname (`PLAN.md`, `progress.md`, `features.json`, etc.), the actual on-disk location is resolved by `scripts/harness_memory.py`'s dispatcher chain: vault-backed `<vault>/projects/<slug>/_harness/<file>` (V4.1.0+ canonical) → legacy `<project>/.harness/<file>` (fallback with one-warn-per-session-per-file). Writes go only to the vault path unless `<vault>/projects/<slug>/_harness/.project-mode` reads `local` (DC-3 opt-out). The phase spec describes WHAT to read/write; the dispatcher decides WHERE. Pre-migration projects continue working via the legacy path. Path references in this spec are short-form shorthand for the resolved location.
+> **State-file resolution (V4 #26 + #37).** State files (`PLAN.md`, `progress.md`, `features.json`, `FOLLOWUPS.md`, `ROADMAP*.md`, etc.) live at `<vault>/projects/<slug>/_harness/<file>` post-migration. **Invoke the dispatcher CLI for reads + writes — don't bare-`Read .harness/<file>`:**
+>
+> ```bash
+> # Read:
+> python3 scripts/harness_memory.py read-state PLAN.md
+>
+> # Write (content from stdin):
+> echo "$NEW_CONTENT" | python3 scripts/harness_memory.py write-state PLAN.md
+>
+> # Resolve the on-disk path (for archive moves, log lines, etc.):
+> python3 scripts/harness_memory.py vault-state-path PLAN.md
+> ```
+>
+> The dispatcher transparently resolves vault path (V4.1.0+ canonical) → legacy `<project>/.harness/<file>` fallback with one-warn-per-session-per-file. Writes go only to vault unless `.project-mode=local` (operator opt-out per DC-3). Inline `.harness/<file>` references in this spec's prose are operator-recognizable shorthand for the dispatcher-resolved path.
 
 ## Purpose
 

@@ -1045,6 +1045,43 @@ def _build_parser() -> argparse.ArgumentParser:
     # available
     sub.add_parser("available", help="exit 0 iff vault is accessible")
 
+    # V4 #37 task 7: dispatcher CLI for state-file reads/writes/path lookups.
+    # Phase specs + bugfix pipeline invoke these instead of bare `Read .harness/<file>`
+    # so the workflow actually uses the vault canonical path post-V4 #26.
+    p_read_state = sub.add_parser(
+        "read-state",
+        help="read a project state file via the resolver (vault-first, legacy fallback)",
+    )
+    p_read_state.add_argument("filename", help="state file shortname (e.g. PLAN.md)")
+    p_read_state.add_argument(
+        "--project-root", default=None,
+        help="path to project root (default: cwd); resolver auto-detects slug from here",
+    )
+
+    p_write_state = sub.add_parser(
+        "write-state",
+        help="write a project state file via the resolver (vault-only unless .project-mode=local)",
+    )
+    p_write_state.add_argument("filename", help="state file shortname (e.g. PLAN.md)")
+    p_write_state.add_argument(
+        "--project-root", default=None,
+        help="path to project root (default: cwd)",
+    )
+    p_write_state.add_argument(
+        "--content-file", default="-",
+        help="path to file containing new content, or '-' for stdin (default)",
+    )
+
+    p_vsp = sub.add_parser(
+        "vault-state-path",
+        help="emit the resolved on-disk path for a state file",
+    )
+    p_vsp.add_argument("filename", help="state file shortname (e.g. PLAN.md)")
+    p_vsp.add_argument(
+        "--project-root", default=None,
+        help="path to project root (default: cwd)",
+    )
+
     return parser
 
 
@@ -1092,6 +1129,45 @@ def main(argv: Optional[list[str]] = None) -> int:
         tail = plan_done_promotion(root, advance_cursor=not args.dry_run)
         if tail:
             sys.stdout.write(tail)
+        return 0
+
+    # V4 #37 task 7: dispatcher CLI subcommands. Phase specs invoke these
+    # explicitly so the workflow uses the post-V4 #26 vault path via the
+    # resolver chain (with legacy fallback + .project-mode=local opt-out).
+
+    if args.cmd == "read-state":
+        root = Path(args.project_root).expanduser() if args.project_root else Path.cwd()
+        resolution = resolve_project({"cwd": root})
+        content = read_state_file(resolution, args.filename)
+        sys.stdout.write(content)
+        return 0
+
+    if args.cmd == "write-state":
+        root = Path(args.project_root).expanduser() if args.project_root else Path.cwd()
+        resolution = resolve_project({"cwd": root})
+        try:
+            content = _read_content_file(args.content_file)
+        except OSError as exc:
+            print(f"[harness_memory] cannot read --content-file: {exc}", file=sys.stderr)
+            return 2
+        try:
+            path = write_state_file(resolution, args.filename, content)
+        except ValueError as exc:
+            # Resolver lacks vault_path (no slug, no vault) — surface error.
+            print(f"[harness_memory] {exc}", file=sys.stderr)
+            return 2
+        print(str(path))
+        return 0
+
+    if args.cmd == "vault-state-path":
+        root = Path(args.project_root).expanduser() if args.project_root else Path.cwd()
+        resolution = resolve_project({"cwd": root})
+        path = vault_state_path(resolution, args.filename)
+        if path is None:
+            # No vault_path — emit empty + non-zero exit (caller can graceful-skip).
+            print("", end="")
+            return 1
+        print(str(path))
         return 0
 
     # argparse should prevent this branch.

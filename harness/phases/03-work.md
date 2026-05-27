@@ -3,7 +3,15 @@
 Implement exactly one task from `PLAN.md`. Stop when that task is done and its verification gates are green. Do not start the next task.
 
 > [!NOTE]
-> **State-file resolution (V4 #26+).** Where this spec references state files by shortname (`PLAN.md`, `progress.md`, `features.json`, etc.), the actual on-disk location is resolved by `scripts/harness_memory.py`'s dispatcher chain: vault-backed `<vault>/projects/<slug>/_harness/<file>` (V4.1.0+ canonical) → legacy `<project>/.harness/<file>` (fallback with one-warn-per-session-per-file). Writes go only to the vault path unless `.project-mode` reads `local`. The phase spec describes WHAT to read/write; the dispatcher decides WHERE.
+> **State-file resolution (V4 #26 + #37).** State files live at `<vault>/projects/<slug>/_harness/<file>` post-migration. **Invoke the dispatcher CLI — don't bare-`Read .harness/<file>` or `Edit .harness/<file>`:**
+>
+> ```bash
+> python3 scripts/harness_memory.py read-state PLAN.md       # read PLAN.md
+> echo "$NEW" | python3 scripts/harness_memory.py write-state PLAN.md   # flip [ ] → [x]
+> python3 scripts/harness_memory.py vault-state-path PLAN.md  # resolve path (e.g. for evidence-tracker hook)
+> ```
+>
+> Dispatcher resolves vault path → legacy `<project>/.harness/<file>` fallback with one-warn-per-session-per-file. Writes go only to vault unless `.project-mode=local` (operator opt-out). Inline `.harness/<file>` refs in prose are shorthand for the dispatcher-resolved path. **The evidence-tracker hook (§5b) operates on the resolved vault path post-migration; its `**Evidence:**` matching honors the dispatcher chain transparently.**
 
 ## Purpose
 

@@ -3,7 +3,15 @@
 Turn a brief into `PLAN.md` — a structured, executable plan with per-task verification criteria. No code is written in this phase.
 
 > [!NOTE]
-> **State-file resolution (V4 #26+).** Where this spec references state files by shortname (`PLAN.md`, `progress.md`, `FOLLOWUPS.md`, etc.), the actual on-disk location is resolved by `scripts/harness_memory.py`'s dispatcher chain: vault-backed `<vault>/projects/<slug>/_harness/<file>` (V4.1.0+ canonical) → legacy `<project>/.harness/<file>` (fallback with one-warn-per-session-per-file). Writes go only to the vault path unless `.project-mode` reads `local`.
+> **State-file resolution (V4 #26 + #37).** State files live at `<vault>/projects/<slug>/_harness/<file>` post-migration. **Invoke the dispatcher CLI — don't bare-`Read .harness/<file>`:**
+>
+> ```bash
+> python3 scripts/harness_memory.py read-state PLAN.md       # read
+> echo "$NEW" | python3 scripts/harness_memory.py write-state PLAN.md   # write
+> python3 scripts/harness_memory.py vault-state-path PLAN.md  # resolve path
+> ```
+>
+> Dispatcher resolves vault path → legacy `<project>/.harness/<file>` fallback with one-warn-per-session-per-file. Writes go only to vault unless `.project-mode=local` (operator opt-out). Inline `.harness/<file>` refs in prose are shorthand for the dispatcher-resolved path.
 
 ## Purpose
 

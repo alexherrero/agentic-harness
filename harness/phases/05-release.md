@@ -3,7 +3,15 @@
 Pre-merge gate. The last checkpoint before work becomes shared, visible, or shipped. Enforces that the plan is actually done, gates are green on a clean base, and the human decides to pull the trigger — not the agent.
 
 > [!NOTE]
-> **State-file resolution (V4 #26+).** Where this spec references state files by shortname (`PLAN.md`, `progress.md`, `ROADMAP.md`, `PLAN.archive.*.md`, etc.), the actual on-disk location is resolved by `scripts/harness_memory.py`'s dispatcher chain: vault-backed `<vault>/projects/<slug>/_harness/<file>` (V4.1.0+ canonical) → legacy `<project>/.harness/<file>` (fallback). CHANGELOG.md stays per-repo (it's publicly shipped, not state). Writes go only to the vault path unless `.project-mode` reads `local`.
+> **State-file resolution (V4 #26 + #37).** State files live at `<vault>/projects/<slug>/_harness/<file>` post-migration. **CHANGELOG.md stays per-repo (publicly shipped, not state).** **Invoke the dispatcher CLI for state-file reads + writes:**
+>
+> ```bash
+> python3 scripts/harness_memory.py read-state PLAN.md       # flip Status → done
+> python3 scripts/harness_memory.py vault-state-path PLAN.md # resolve for archive mv
+> python3 scripts/harness_memory.py read-state ROADMAP.md    # move-out
+> ```
+>
+> Dispatcher resolves vault path → legacy `<project>/.harness/<file>` fallback. Archive operations (e.g. `PLAN.md → PLAN.archive.YYYYMMDD-<slug>.md`) use `vault-state-path` to get both source + target paths.
 
 ## Purpose
 

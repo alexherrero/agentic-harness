@@ -3,7 +3,15 @@
 Triage-first pipeline for bug reports. Replaces `/plan` + `/work` when the work is driven by a defect, not a new feature. Adapted from [Pimzino/claude-code-spec-workflow](https://github.com/Pimzino/claude-code-spec-workflow)'s bug-fix pipeline — one of the few harness patterns in OSS that formalizes defect handling instead of treating bugs as a special case of features.
 
 > [!NOTE]
-> **State-file resolution (V4 #26+).** Where this spec references state files by shortname (`PLAN.md`, `progress.md`, `features.json`, etc.), the actual on-disk location is resolved by `scripts/harness_memory.py`'s dispatcher chain: vault-backed `<vault>/projects/<slug>/_harness/<file>` (V4.1.0+ canonical) → legacy `<project>/.harness/<file>` (fallback). Writes go only to the vault path unless `.project-mode` reads `local`.
+> **State-file resolution (V4 #26 + #37).** **Invoke the dispatcher CLI for state-file reads + writes — don't bare-`Read .harness/<file>`:**
+>
+> ```bash
+> python3 scripts/harness_memory.py read-state PLAN.md       # bugfix plan
+> echo "$NEW" | python3 scripts/harness_memory.py write-state PLAN.md
+> python3 scripts/harness_memory.py vault-state-path PLAN.md  # resolve path
+> ```
+>
+> Dispatcher resolves vault path → legacy `<project>/.harness/<file>` fallback. Writes go only to vault unless `.project-mode=local` (operator opt-out).
 
 ## Why a separate pipeline
 
