@@ -12,7 +12,7 @@ This page covers: what loads/saves at each phase boundary, the env vars that tun
 
 ## Prerequisites
 
-1. **MemoryVault installed** (sibling clone): `crickets/skills/memory/` exists next to your `agentm/` checkout (or at `~/Antigravity/crickets/`).
+1. **MemoryVault installed** (v4.0.0+: shipped with agentm at `harness/skills/memory/`; in v3.x and earlier it lived at `crickets/skills/memory/` and the harness loaded it via sibling-clone resolution). For v3.x compatibility, the harness's 3-tier resolver checks `agentm/harness/skills/memory/scripts/save.py` first, then falls back to the legacy `crickets/skills/memory/scripts/save.py` sibling path, then to `HARNESS_MEMORY_TOOLKIT_PATH` env override.
 2. **`MEMORY_VAULT_PATH` env set** to your vault root (e.g. `~/Library/CloudStorage/GoogleDrive-…/Obsidian/AgentMemory`).
 3. **`.harness/project.json` has a `vault_project` field** OR your repo has a `github.repo` field OR a git origin — auto-detect uses the 3-tier fallback (see [ADR 0007 §Q2](../explanation/decisions/0007-auto-context-into-harness-phases.md#q2--vault-project-slug-explicit-field--3-tier-auto-detect)).
 
@@ -106,7 +106,7 @@ Entry cap is a separate constraint (default 5 per phase) — if you need more en
 |---|---|---|
 | No recall output at all | `MEMORY_VAULT_PATH` env unset OR directory missing | `echo $MEMORY_VAULT_PATH` + verify dir exists |
 | Recall output but missing per-project entries | `vault_project` slug not resolving to a real `personal-projects/<slug>/` dir | `python3 scripts/vault_project.py read .` — check the returned slug matches a vault entry |
-| `[harness_memory] toolkit not installed` stderr notice | Toolkit memory scripts not found via 3-tier resolution | Verify `crickets/skills/memory/scripts/save.py` exists at sibling-clone path OR set `HARNESS_MEMORY_TOOLKIT_PATH` |
+| `[harness_memory] toolkit not installed` stderr notice | Memory scripts not found via 3-tier resolution | Verify `agentm/harness/skills/memory/scripts/save.py` (v4.0.0+) OR legacy `crickets/skills/memory/scripts/save.py` (v3.x) exists; OR set `HARNESS_MEMORY_TOOLKIT_PATH` |
 | Save prompt fires even at high confidence | Threshold set above 0.8 OR `HARNESS_AUTO_SAVE_MODE=ask` with no `--confidence` passed | Check threshold env; if confidence is omitted by the agent, prompt is correct behavior (fallback to ask) |
 | Save proceeds silently when you wanted to review | `HARNESS_AUTO_SAVE_MODE=silent` OR confidence ≥ threshold | Switch mode back to `ask` (default); raise threshold if confidence is being over-estimated |
 | Cursor advances but no candidates surface | `progress.md` since last cursor was empty OR LLM summarizer found nothing durable | Expected when last plan was small/routine; re-check with `--dry-run` flag |

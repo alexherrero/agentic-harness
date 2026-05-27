@@ -5,6 +5,79 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v4.0.0] — 2026-05-27 — V4 device-wide era opens: compound surface absorbed from Crickets
+
+**MAJOR.** V4 #36 reorganization. Agent M absorbs the compound skills (`memory`, `design`, `diataxis-author`, `ship-release`), the four memory hooks (`memory-recall-session-start`, `memory-recall-prompt-submit`, `memory-reflect-stop`, `memory-reflect-idle`), the `evidence-tracker` hook, the `memory-idea-researcher` sub-agent, and the `plugins/` tree (including `example-plugin` and the `install-plugin.sh` user-global plugin installer) — all of which previously shipped from Crickets v1.x. Per [ADR 0012](https://github.com/alexherrero/crickets/blob/main/wiki/explanation/decisions/0012-device-wide-by-default.md) (device-wide-by-default), Agent M is now the canonical home for agentic-memory primitives + compound flows that turn the harness into a learning environment; Crickets narrows to base primitives universal to any project. Paired with **Crickets v2.0.0** — see the [Crickets v2.0.0 release notes](https://github.com/alexherrero/crickets/releases/tag/v2.0.0). This release **opens the V4 era**: subsequent v4.x builds (state migration, global install scope, auto-detect bootstrap, vault-context documenter, etc.) operate against this cleanly-bounded repo layout.
+
+### Added
+
+- **`harness/skills/memory/`** — 14-script compound skill (`save.py`, `evolve.py`, `recall.py`, `reflect.py`, `embed.py`, `vec_index.py`, `permeable_boundary.py`, `ideas_surface.py`, `ideas_incubator.py`, `ideas_promote.py`, `index_skills.py`, `discover_skills.py`, `adapt_skills.py`, `watchlist_review.py`). The Agent M memory skill itself — `/memory save` / `evolve` / `reflect` / `search` / `index-skills` / `discover-skills` / `adapt-skills` / `watchlist` / `promote`.
+- **`harness/skills/design/`** — Human-facing 10-section design pipeline → agent execution handoff.
+- **`harness/skills/diataxis-author/`** — Diátaxis-wiki authoring + maintenance (5 sub-commands).
+- **`harness/skills/ship-release/`** — Semver-driven release-cutting skill.
+- **`harness/hooks/memory-recall-session-start/`** — SessionStart event: load always-load vault entries (~500ms budget).
+- **`harness/hooks/memory-recall-prompt-submit/`** — UserPromptSubmit: keyword + vector recall (~300ms; never blocks).
+- **`harness/hooks/memory-reflect-stop/`** — Stop event: mine session for durable-knowledge candidates; auto-route HIGH to canonical, MEDIUM/LOW + ideas to `_inbox/`.
+- **`harness/hooks/memory-reflect-idle/`** — Crash-recovery for orphan reflection markers from previous sessions.
+- **`harness/hooks/evidence-tracker/`** — Default-FAIL evidence enforcement on `/work` task closeouts. Blocks `[ ]` → `[x]` flips without prior evidence reads.
+- **`harness/agents/memory-idea-researcher.md`** — Deep-research sub-agent for `_idea-incubator/` skeletons.
+- **`harness/plugins/example-plugin/`** — Reference Antigravity 2.0 plugin (`plugin.md` manifest + nested `skills/<n>/SKILL.md`).
+- **`scripts/install-plugin.sh`** — User-global plugin installer (target: `~/.gemini/config/plugins/<n>/`). Modes: install, `--uninstall`, `--list`. Moved from `crickets/scripts/` in this release.
+- **`requirements.txt`** — `pyyaml` + `sqlite-vec` + `sentence-transformers`. The memory skill's embedding stack. Installed by `install.sh` / `install.ps1` by default; opt out with `--no-python-deps`.
+- **`scripts/manifest-info.py` + `scripts/merge-settings-fragment.py`** — Helper scripts copied from Crickets. The installer dispatcher invokes `merge-settings-fragment.py` to idempotently merge hook settings fragments into `.claude/settings.json`.
+
+### Changed
+
+- **Installer surgery (`install.sh` + `install.ps1`)** — new manifest-walking dispatcher block that walks `harness/skills/<dir>/SKILL.md`, `harness/hooks/<dir>/hook.md`, `harness/agents/<file>.md`. Reads `kind:` + `supported_hosts:` from YAML frontmatter (awk in bash; line-walk in pwsh — no pyyaml dep at install time). claude-code skills → `.claude/skills/<n>/`; antigravity → `.agents/skills/<n>/`. claude-code hooks → `.claude/hooks/<n>.sh` (+ `.py` helpers like `evidence_tracker.py`). Antigravity has no first-class hook surface per [ADR 0009](https://github.com/alexherrero/crickets/blob/main/wiki/explanation/decisions/0009-evidence-tracker-hook.md) — silently no-op'd. Legacy single-file agentm skills (`doctor.md`, `migrate-to-diataxis.md`) and legacy sub-agents (`adversarial-reviewer.md` etc.) without frontmatter flow through the existing `adapters/` pipeline; the dispatcher only operates on crickets-shape manifests.
+- **`BOUNDARY_ROOTS`** extended with `harness/{skills,hooks,agents}` so the primitives lib's `ensure_boundary_src` accepts the new sources.
+- **`MANAGED_PARENTS`** extended with `.claude/hooks` so `--update` wipes the new dir before recreate.
+- **`.gitignore`** — adds `__pycache__/` + `*.pyc`. The reorg import accidentally bundled two `.pyc` files from a prior local test run; deleted in this release + ignored going forward.
+
+### Internal
+
+- **`harness/skills/memory/scripts/__pycache__/*.pyc`** — deleted (bundled-by-accident in the V4 #36 import commit; now gitignored).
+- **`scripts/install-plugin.sh`** — path references updated post-relocation: `SRC_PLUGINS` now resolves to `$HARNESS_ROOT/harness/plugins` (was `$TOOLKIT_ROOT/plugins`); banners say "agentm plugins" not "crickets plugins"; provenance note in top comment.
+- **HLD V4.2 subsections added** to both `crickets/wiki/explanation/designs/agent-memory-evolution.md` (Architecture § "V4 release milestones") and `crickets/wiki/explanation/designs/device-wide-architecture.md` (Lifecycle § v0.2). Both HLDs are cross-linked from this CHANGELOG entry.
+- **CI hotfix** — `pii-guardrails` job's `actions/checkout@v4` step bumped to `fetch-depth: 0`. gitleaks's parent-walk (`git log <base>^..<head>`) was failing on the default shallow checkout.
+
+### Migration
+
+**For v3.x users:** No vault-side migration required. Re-install agentm + crickets:
+
+```bash
+cd ~/Antigravity/agentm && git pull && git checkout v4.0.0
+cd ~/Antigravity/crickets && git pull && git checkout v2.0.0
+bash ~/Antigravity/crickets/install.sh <target-project>
+bash ~/Antigravity/agentm/install.sh <target-project>
+```
+
+Crickets ships first (base primitives + 3 evaluator sub-agents + 3 operator-control hooks); Agent M ships second (compound skills + memory hooks + memory-idea-researcher + plugins layer). The compound skills + memory hooks land at the same `.claude/skills/`, `.claude/hooks/`, `.agents/skills/` destinations Crickets v1.x used; your vault content is untouched.
+
+**Legacy `<project>/.harness/` paths stay supported** in v4.0.0. The hard-cut deprecation (vault-as-canonical-context: `<vault>/projects/<slug>/_harness/`) moves to whichever v4.x release ships state migration (ROADMAP-V4 #26). Deprecation banners + read fallback stay in v4.0.0.
+
+**Plugin users (`install-plugin.sh`):** the script moved from `crickets/scripts/` to `agentm/scripts/`. Update any local automation that referenced the old path.
+
+### Cross-references
+
+- **Paired sibling release:** [Crickets v2.0.0](https://github.com/alexherrero/crickets/releases/tag/v2.0.0) — Catalog narrowed to base primitives.
+- **HLD updates:**
+  - [agent-memory-evolution.md § V4 release milestones](https://github.com/alexherrero/crickets/blob/main/wiki/explanation/designs/agent-memory-evolution.md) — V4.1 + V4.2 retroactively captured per `hld-evolution-update-on-major-release`.
+  - [device-wide-architecture.md § Lifecycle v0.2](https://github.com/alexherrero/crickets/blob/main/wiki/explanation/designs/device-wide-architecture.md) — V4.2 documented as the foundational V4 build.
+- **ADRs referenced:** [ADR 0012 — device-wide-by-default](https://github.com/alexherrero/crickets/blob/main/wiki/explanation/decisions/0012-device-wide-by-default.md) (locked the decision; this release implements it on the Agent M side).
+- **Plan:** `.harness/PLAN.md` plan #19 — coordinated paired release pair #11. Toolkit-first per `coordinated-release-order`.
+
+### Deferred to subsequent v4.x releases
+
+- **State migration** + hard-cut deprecation of `<project>/.harness/` paths — ROADMAP-V4 #26 (the next BUILD plan).
+- **Global install scope** (`--scope user`, ~/.claude/`) — ROADMAP-V4 #30.
+- **Auto-detect bootstrap** (first-conversation-detection in a project that hasn't been configured) — ROADMAP-V4 #32.
+- **Documenter vault-context resolution** (resolver chain for which vault dir docs draft from) — ROADMAP-V4 #35.
+- **Vault folder rename** `personal-projects/` → `projects/` — ROADMAP-V4 #26 (paired with the state migration).
+- **First-run vault detection in installer** — ROADMAP-V4 #30.
+- **Crickets-sibling auto-detect + clone** in agentm installer — operator-friendly UX nicety; not a correctness gap. Currently both repos require independent installer invocations.
+
+---
+
 ## [v3.2.0] — 2026-05-25 — Doctor probes for Antigravity 2.0 + Antigravity CLI primitives
 
 Minor — **harness-side doctor probes for the new Antigravity 2.0 + Antigravity CLI (`agy`) host surface**. Paired with `crickets` v1.2.0 (the toolkit-side support) — see [crickets v1.2.0 release notes](https://github.com/alexherrero/crickets/releases/tag/v1.2.0). Together with crickets v1.2.0, ships ahead of the 2026-06-18 Gemini CLI consumer sunset.

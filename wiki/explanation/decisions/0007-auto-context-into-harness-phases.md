@@ -108,6 +108,21 @@ Both triggers invoke the same `harness_memory.py plan-done-promotion` sub-comman
 
 4. **Cursor-file model survives append-only progress.md convention.** Re-audit if progress.md format evolves to allow mid-file edits (e.g. inline corrections, retroactive annotations) OR if multi-process write contention becomes a concern.
 
+## Amendment — 2026-05-27 — V4 #36 reorganization
+
+The "Toolkit dependency is soft — graceful-skip when `crickets/skills/memory/` isn't sibling-cloned" framing reflects the v3.x reality where the memory skill lived in Crickets. **As of agentm v4.0.0 (V4 #36 reorg) the memory skill moved to Agent M itself at `harness/skills/memory/`** per [ADR 0012 (device-wide-by-default)](https://github.com/alexherrero/crickets/blob/main/wiki/explanation/decisions/0012-device-wide-by-default.md).
+
+The `scripts/harness_memory.py` `toolkit_scripts_dir()` resolver now checks four paths in order:
+
+1. `HARNESS_MEMORY_TOOLKIT_PATH` env override.
+2. **`<harness_repo>/harness/skills/memory/scripts/`** (v4.0.0+ canonical — the new home).
+3. `<harness_repo>/../crickets/skills/memory/scripts/` (legacy v3.x sibling-clone fallback).
+4. `~/Antigravity/crickets/skills/memory/scripts/` (legacy v3.x canonical-install fallback).
+
+The soft-dependency contract from this ADR survives: the harness still runs identically when the memory skill is absent — `available()` returns the same exit codes, every phase still graceful-skips silently. Only the resolution path changed.
+
+The two legacy crickets paths are kept in the resolver chain for operators on v3.x catalogs who haven't upgraded yet. Once V4 #26 (state migration) lands and v3.x is fully sunsetted, the legacy paths can be dropped.
+
 ## Related
 
 - [ROADMAP item #8](https://github.com/alexherrero/agentm/blob/main/.harness/ROADMAP.md) — the roadmap entry that triggered this work.

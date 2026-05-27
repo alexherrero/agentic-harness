@@ -130,24 +130,39 @@ def is_available() -> bool:
 
 
 def toolkit_scripts_dir() -> Optional[Path]:
-    """Locate the toolkit memory scripts dir, or None if not installed.
+    """Locate the memory skill scripts dir, or None if not installed.
 
-    Resolution order:
+    Resolution order (V4 #36 / v4.0.0+):
       1. HARNESS_MEMORY_TOOLKIT_PATH env (override, used by tests)
-      2. <harness_repo>/../crickets/skills/memory/scripts/  (sibling clone)
-      3. ~/Antigravity/crickets/skills/memory/scripts/      (canonical install)
+      2. <harness_repo>/harness/skills/memory/scripts/      (v4.0.0+ canonical:
+                                                              memory skill
+                                                              ships with agentm)
+      3. <harness_repo>/../crickets/skills/memory/scripts/  (legacy v3.x sibling
+                                                              clone — kept for
+                                                              backward-compat
+                                                              with operators on
+                                                              old crickets
+                                                              v1.x catalogs)
+      4. ~/Antigravity/crickets/skills/memory/scripts/      (legacy v3.x
+                                                              canonical install)
     """
     override = os.environ.get("HARNESS_MEMORY_TOOLKIT_PATH", "").strip()
     if override:
         p = Path(override).expanduser()
         return p if p.is_dir() else None
 
-    # Sibling clone — _HERE is <harness>/scripts/
+    # v4.0.0+ canonical: memory skill lives at harness/skills/memory/ in agentm.
     harness_root = _HERE.parent
+    local = harness_root / "harness" / "skills" / "memory" / "scripts"
+    if local.is_dir():
+        return local
+
+    # Legacy v3.x sibling clone (memory skill was in crickets).
     sibling = harness_root.parent / "crickets" / "skills" / "memory" / "scripts"
     if sibling.is_dir():
         return sibling
 
+    # Legacy v3.x canonical install path.
     canonical = Path.home() / "Antigravity" / "crickets" / "skills" / "memory" / "scripts"
     if canonical.is_dir():
         return canonical

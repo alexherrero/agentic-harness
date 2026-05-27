@@ -32,8 +32,8 @@ Imagine those workflows you saw in the movies. You're talking to your agent, *"o
 
 This repo is the **harness** — the phase-gated workflow, auto-recall hooks, sub-agents, and on-disk state that make Agent M a system instead of a folder of files. It pairs with [**Crickets**](https://github.com/alexherrero/crickets) — a tactical suite of agent primitives (skills, hooks, sub-agents, bundles) that acts as the execution engine the harness installs into your target projects.
 
-> **Latest:** v3.0.1 (2026-05-24) — Agent M V3 close-out + brand pass.  
-> [Release notes](https://github.com/alexherrero/agentm/releases/latest) · [Agent M Evolution HLD](https://github.com/alexherrero/crickets/blob/main/wiki/explanation/designs/agent-memory-evolution.md) · [CHANGELOG](CHANGELOG.md)
+> **Latest:** v4.0.0 (2026-05-27) — **V4 device-wide era opens.** Agent M absorbs the compound skills (`memory`, `design`, `diataxis-author`, `ship-release`), the four memory hooks, the `evidence-tracker` hook, the `memory-idea-researcher` sub-agent, and the plugins layer that previously shipped from Crickets. Per ADR 0012 (device-wide-by-default), Agent M is now the canonical home for agentic-memory primitives + compound flows; Crickets narrows to base primitives. Paired with **Crickets v2.0.0** (the reorg's other half). Reorganization release only — state migration (vault-as-canonical-context for `.harness/` paths) ships in a subsequent v4.x release.  
+> [Release notes](https://github.com/alexherrero/agentm/releases/latest) · [Agent M Evolution HLD](https://github.com/alexherrero/crickets/blob/main/wiki/explanation/designs/agent-memory-evolution.md) · [Device-Wide Architecture HLD](https://github.com/alexherrero/crickets/blob/main/wiki/explanation/designs/device-wide-architecture.md) · [CHANGELOG](CHANGELOG.md)
 
 ## What's where
 
@@ -150,12 +150,45 @@ Every phase auto-recalls relevant entries from your AgentMemory vault at start, 
 
 ## Skills shipped with the harness
 
+Legacy single-file canonical skills (delivered via the per-host `adapters/` pipeline):
+
 | Skill | What it does |
 |---|---|
-| [`migrate-to-diataxis`](harness/skills/migrate-to-diataxis.md) | One-shot migration of an already-installed project's `wiki/` to the Diátaxis four-mode layout. Preview-first, `git mv` for blame, non-destructive. (Superseded by Crickets' `diataxis-author` skill for new work; kept for legacy migration.) |
+| [`migrate-to-diataxis`](harness/skills/migrate-to-diataxis.md) | One-shot migration of an already-installed project's `wiki/` to the Diátaxis four-mode layout. Preview-first, `git mv` for blame, non-destructive. (Superseded by `diataxis-author` for new work; kept for legacy migration.) |
 | [`doctor`](harness/skills/doctor.md) | User-invoked (`/doctor`). Verifies the install is correctly wired up in this host — structural by default, `--live` adds real sub-agent dispatches and skill dry-runs. |
 
-Personal customizations — skills, sub-agents, hooks, MCP servers, bundles — live in **Crickets**. See [ADR 0006](wiki/explanation/decisions/0006-crickets-split.md) for the split.
+Compound skills imported from Crickets in v4.0.0 (V4 #36) — delivered via the manifest-walking dispatcher in `install.sh` / `install.ps1`:
+
+| Skill | What it does |
+|---|---|
+| [`memory`](harness/skills/memory/SKILL.md) | The Agent M memory skill itself. `/memory save` / `evolve` / `reflect` / `search` / `index-skills` / `discover-skills` / `adapt-skills` / `watchlist` / `promote`. Permeable A3 write boundary; collision-checked; supersession-not-deletion. Powers the recall + reflect hook loop. |
+| [`design`](harness/skills/design/SKILL.md) | Human-facing design pipeline → agent execution handoff. `/design author` walks a 10-section template; `/design translate` splits the approved design into structural parts; `/design sequence` generates a `PLAN.md` per part for `/work` + `/release` flow. |
+| [`diataxis-author`](harness/skills/diataxis-author/SKILL.md) | Author + maintain a Diátaxis-style wiki for any repo. `/diataxis author` / `check` / `repair` / `migrate` / `classify`. Subsumes the harness's `migrate-to-diataxis` predecessor. |
+| [`ship-release`](harness/skills/ship-release/SKILL.md) | Cut a tagged GitHub release with semver-driven version bumps from conventional commits. Writes CHANGELOG, tags, pushes, creates the release. |
+
+Hooks (claude-code only per [ADR 0009](https://github.com/alexherrero/crickets/blob/main/wiki/explanation/decisions/0009-evidence-tracker-hook.md)):
+
+| Hook | What it does |
+|---|---|
+| [`memory-recall-session-start`](harness/hooks/memory-recall-session-start/hook.md) | SessionStart event → loads always-load entries from your vault into the agent's context (deduped, status-filtered, ~500ms budget). |
+| [`memory-recall-prompt-submit`](harness/hooks/memory-recall-prompt-submit/hook.md) | UserPromptSubmit event → keyword + vector-search recall of relevant entries based on the current prompt (~300ms budget; never blocks the prompt). |
+| [`memory-reflect-stop`](harness/hooks/memory-reflect-stop/hook.md) | Stop event → mines the session transcript for durable-knowledge candidates (preferences, workflows, fixes, ideas); HIGH-confidence auto-saves to canonical paths, MEDIUM/LOW + ideas land in `_inbox/`. |
+| [`memory-reflect-idle`](harness/hooks/memory-reflect-idle/hook.md) | SessionStart event → recovers orphan reflection markers from crashed sessions, processes deferred reflection candidates. |
+| [`evidence-tracker`](harness/hooks/evidence-tracker/hook.md) | Default-FAIL evidence enforcement on `/work` task closeouts. Blocks `[ ]` → `[x]` flips in `PLAN.md` unless the agent demonstrably `Read` the spec/test files first. Hybrid resolver (heuristic + per-task override + explicit opt-out). |
+
+Sub-agents (imported in v4.0.0; existing 4 legacy agents at `harness/agents/`):
+
+| Sub-agent | What it does |
+|---|---|
+| [`memory-idea-researcher`](harness/agents/memory-idea-researcher.md) | Read-only deep-research worker for `_idea-incubator/` skeletons. Bounded wall-time / web-fetch / token budgets enforced from the skeleton's frontmatter. |
+
+Plugins (Antigravity 2.0 / agy v1.0.2+):
+
+| Plugin | What it does |
+|---|---|
+| [`example-plugin`](harness/plugins/example-plugin/) | Reference plugin showing the Antigravity 2.0 plugin manifest format. Install via `bash scripts/install-plugin.sh example-plugin`. |
+
+Base primitives + the 3 evaluator sub-agents (`evaluator`, `adapt-evaluator`, `diataxis-evaluator`) + 3 operator-control hooks (`kill-switch`, `steer`, `commit-on-stop`) + 2 utility skills (`pii-scrubber`, `dependabot-fixer`) live in **Crickets**. See [ADR 0012](https://github.com/alexherrero/crickets/blob/main/wiki/explanation/decisions/0012-device-wide-by-default.md) for the device-wide-by-default split rationale and [ADR 0006](wiki/explanation/decisions/0006-crickets-split.md) for the original split decision.
 
 ## Telemetry
 
@@ -191,7 +224,7 @@ For the harness's design rationale, see [harness/principles.md](harness/principl
 
 ## Status
 
-Currently shipping **v3.0.1** — see [CHANGELOG.md](CHANGELOG.md) and the [latest release](https://github.com/alexherrero/agentm/releases/latest). Releases and release notes are the source of truth; the harness ships in lockstep with Crickets as paired releases.
+Currently shipping **v4.0.0** — V4 device-wide era opens. Compound surface (memory + design + diataxis-author + ship-release + memory hooks + evidence-tracker + memory-idea-researcher + plugins layer) absorbed from Crickets v1.x. State migration (`<project>/.harness/` → `<vault>/projects/<slug>/_harness/`) is the next V4.x build (ROADMAP-V4 #26); legacy paths stay supported with deprecation warning until that release. See [CHANGELOG.md](CHANGELOG.md) and the [latest release](https://github.com/alexherrero/agentm/releases/latest). Releases and release notes are the source of truth; the harness ships in lockstep with Crickets as paired releases.
 
 ## Contributing
 
