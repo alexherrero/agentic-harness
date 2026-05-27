@@ -124,4 +124,34 @@ if [[ -f "$DISCOVER_PY" && -n "${MEMORY_VAULT_PATH:-}" ]]; then
     python3 "$DISCOVER_PY" --vault-path "$MEMORY_VAULT_PATH" --cadence-check >&2 2>&1 || true
 fi
 
+# ── Vec-index drift sweep (V4 #37 task 6) ─────────────────────────────────
+# Fire vec_index.py full-sync (read-only; no --rebuild) so the operator
+# sees drift accumulation without surprise. Requires MEMORY_VAULT_PATH;
+# graceful-skip if unset / vec_index.py absent / sqlite-vec unavailable.
+#
+# Sub-second overhead at typical vault size (one os.stat per entry + one
+# bulk sqlite query). Non-blocking — surfaces drift count to stderr per
+# the existing idle-pass transparency convention. Operators with drift
+# accumulation run `vec_index.py full-sync --rebuild` to enqueue.
+VEC_INDEX_PY=".claude/skills/memory/scripts/vec_index.py"
+if [[ -f "$VEC_INDEX_PY" && -n "${MEMORY_VAULT_PATH:-}" ]]; then
+    drift_json=$(python3 "$VEC_INDEX_PY" --vault-path "$MEMORY_VAULT_PATH" full-sync 2>/dev/null || echo '{}')
+    if [[ -n "$drift_json" ]]; then
+        drift_summary=$(python3 -c "
+import json, sys
+try:
+    d = json.loads(sys.argv[1])
+    drifted = d.get('drifted_count', 0)
+    not_indexed = d.get('not_indexed_count', 0)
+    if drifted or not_indexed:
+        print(f'{drifted} drifted + {not_indexed} not-indexed')
+except Exception:
+    pass
+" "$drift_json" 2>/dev/null)
+        if [[ -n "$drift_summary" ]]; then
+            echo "[memory-reflect-idle] vec-index drift sweep: $drift_summary (run \`python3 $VEC_INDEX_PY full-sync --rebuild\` to enqueue for re-embed)" >&2
+        fi
+    fi
+fi
+
 exit 0

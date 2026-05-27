@@ -98,4 +98,24 @@ if ((Test-Path $DiscoverPy) -and $VaultEnv) {
     }
 }
 
+# ── Vec-index drift sweep (V4 #37 task 6) ─────────────────────────────────
+# Fire vec_index.py full-sync (read-only; no --rebuild) so drift
+# accumulation surfaces non-blockingly. Graceful-skip if MEMORY_VAULT_PATH
+# unset / vec_index.py absent / sqlite-vec unavailable. Operators with
+# drift accumulation run `vec_index.py full-sync --rebuild` to enqueue.
+$VecIndexPy = ".claude/skills/memory/scripts/vec_index.py"
+if ((Test-Path $VecIndexPy) -and $VaultEnv) {
+    try {
+        $driftJson = & $Py $VecIndexPy "--vault-path" $VaultEnv "full-sync" 2>$null
+        if ($driftJson) {
+            $parsed = $driftJson | ConvertFrom-Json -ErrorAction SilentlyContinue
+            if ($parsed -and (($parsed.drifted_count -gt 0) -or ($parsed.not_indexed_count -gt 0))) {
+                [Console]::Error.WriteLine("[memory-reflect-idle] vec-index drift sweep: $($parsed.drifted_count) drifted + $($parsed.not_indexed_count) not-indexed (run ``pwsh -File $VecIndexPy full-sync --rebuild`` to enqueue for re-embed)")
+            }
+        }
+    } catch {
+        # Non-fatal — the hook never blocks on drift-sweep failure.
+    }
+}
+
 exit 0
