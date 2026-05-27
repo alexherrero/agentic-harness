@@ -5,6 +5,86 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v4.1.0] — 2026-05-27 — Vault-backed harness state + folder rename `personal-projects/` → `projects/`
+
+**MINOR.** ROADMAP-V4 item #26. The first BUILD on top of the V4.0.0 reorganization. Per-project harness state — `PLAN.md`, `progress.md`, the four `ROADMAP*.md` files (slim + V4 + V5 + V6), `FOLLOWUPS.md`, `features.json`, `init.sh`, `known-migrations.md`, `verify.{sh,ps1}`, `.promoted-progress-cursor`, archived plans (`PLAN.archive.YYYYMMDD-*.md`), `designs/` subtree, and the deprecated `project.json` — all relocate from `<project>/.harness/` to `<vault>/projects/<slug>/_harness/`. The vault top-level folder `personal-projects/` renames to `projects/` in the same release. Backward-compat preserved as a release gate: legacy `<project>/.harness/<file>` reads still work via the resolver chain's tier-2 fallback with a one-warn-per-session-per-file deprecation notice; writes go only to vault unless `<vault>/projects/<slug>/_harness/.project-mode` reads `local` (the operator-opt-out escape hatch for reversibility). The reorg is *additive* — no breaking changes for v4.0.0 operators. **Crickets unaffected** (stays at v2.0.0). Single-repo release. See [HLD V4.3 subsections](https://github.com/alexherrero/crickets/blob/main/wiki/explanation/designs/agent-memory-evolution.md#v4-release-milestones) for the architectural arc.
+
+### Added
+
+- **`scripts/harness_memory.py`** — new resolver chain + dispatcher primitives:
+  - `_vault_projects_dir(vault)` — dual-path helper preferring `<vault>/projects/`, falling back to `<vault>/personal-projects/` during the transition window.
+  - `resolve_project(context)` → `{slug, vault_path, project_root, layout}` where `layout ∈ {"new", "legacy", "none"}` lets downstream callers decide warn-once behavior.
+  - `vault_state_path(resolution, filename)` — pure path-construction; returns `<vault>/projects/<slug>/_harness/<file>` from a resolution dict.
+  - `read_state_file(resolution, filename)` — tries vault first; falls back to legacy `<project>/.harness/<file>` with a one-warn-per-session-per-file deprecation notice; honors `.project-mode=local` opt-out per locked DC-3.
+  - `write_state_file(resolution, filename, content)` — atomic tmp+rename to vault path; raises `ValueError` if resolution lacks vault_path; honors `.project-mode=local` redirect to legacy.
+  - `warn_once(filename, source)` — module-level session-scoped set; idempotent stderr emission.
+  - `safe_write_replace_style(path, new_content, *, expected_mtime=None)` — atomic write with optional concurrent-modification check; raises `ConcurrentModificationError` when mtime drifts.
+  - `detect_conflict_files(vault_root)` — walks vault for GDrive `(conflicted copy …)` markers; returns `[{conflict, base, rel}]` list. Companion regex helper strips marker variants (with/without device suffix; with/without "from <device>") to infer the canonical base path.
+
+- **`harness/hooks/conflict-merger-session-start/`** — new SessionStart hook (claude-code-only, non-blocking). Detects GDrive conflict files on session boot; surfaces operator-facing notice on stderr per pair; never freezes session start. Configurable via `HARNESS_CONFLICT_MERGER_MODE` env (`interactive` / `silent` / `off`).
+
+- **`scripts/rename-vault-personal-projects.{sh,ps1}`** — vault-side renamer. `mv personal-projects/ projects/` + portable Python-driven in-place sed sweep across `_always-load/` entries, `_idea-incubator/` entries (wikilinks + forward-looking promotion destinations), `personal-private/**/*.md`, and project-tree `_index.md` frontmatter `group:` fields + wikilinks. `_meta/` deliberately excluded (historical narrative preserved). `--preview` mode; idempotent; post-run integrity check.
+
+- **`scripts/migrate-harness-to-vault.{sh,ps1}`** — per-project state migration. Resolves slug via `vault_project.py`; layout-aware; per-file conflict detection (byte-identical → skip; different content → WARN + don't overwrite + advise operator-merge); writes `.migrated-from-pre-v4.1` marker with full provenance; sets `.project-mode=vault`; `--preview` / `--cleanup` / `--rollback` / `--yes` flags. Cleanup preserves `.evidence-reads` per DC-1 (runtime ephemeral).
+
+- **`scripts/list-plans.{sh,ps1}`** — cross-repo convenience surface. Walks `<vault>/projects/*/_harness/PLAN.md`; parses title + Status + mtime; renders one-row-per-project table. Default shows planning + in-progress; `--all` includes done + complete. The "show me all in-flight plans" UX item from the V4 #26 design conversation.
+
+- **23 new unit tests** in `scripts/test_harness_memory.py` across 5 test classes (TestVaultProjectsDir × 4, TestResolveProject × 5, TestVaultStatePath × 4, TestReadStateFile × 6, TestWriteStateFile × 4, TestSafeWriteReplaceStyle × 7, TestDetectConflictFiles × 8). Total: 71 tests in 0.24s.
+
+### Changed
+
+- **All 5 phase specs + `pipelines/bugfix.md`** gain a `> [!NOTE]` callout near the top declaring the resolver chain. Phase specs describe WHAT to read/write (logical file shortnames like `PLAN.md`); the dispatcher decides WHERE. Inline `.harness/<file>` path references survive as factual filename markers. 04-review's callout notes read-only semantics; 05-release's notes that CHANGELOG.md stays per-repo (publicly shipped, not state).
+
+- **Folder-rename sweep** propagated through harness scripts + memory skill body + memory scripts + sub-agent specs + operator-facing docs. Residual `personal-projects/` references survive only as: (1) the `_VAULT_PROJECTS_REL_LEGACY` constant + dual-path resolver code; (2) backward-compat / pre-rename / legacy-alias narrative annotations; (3) the test fixture for the legacy resolver path. Historical CHANGELOG + PLAN.archive entries deliberately preserved.
+
+### Internal
+
+- **`harness/scripts/install-plugin.sh`** path references updated post-V4-#36 — `SRC_PLUGINS` now resolves to `$HARNESS_ROOT/harness/plugins`.
+- **Pre-v3.1.0-rename leftover discovered** during dogfood: `agentm/.harness/project.json` carried `github.repo: alexherrero/agentic-harness` from the agentic-harness → agentm rename. Corrected to `alexherrero/agentm` + added explicit `vault_project: agentm` to avoid tier-2 ambiguity. Logged as a known-issue for operators upgrading from very-old installs: any `project.json` with a `github.repo` field that doesn't match the current GitHub repo name should be updated before running `migrate-harness-to-vault.sh`.
+
+### Migration
+
+For v4.0.0 → v4.1.0 operators with `<project>/.harness/<files>`:
+
+```bash
+# One-time vault rename (run from anywhere; uses MEMORY_VAULT_PATH env):
+bash ~/Antigravity/agentm/scripts/rename-vault-personal-projects.sh --preview  # review
+bash ~/Antigravity/agentm/scripts/rename-vault-personal-projects.sh             # live
+
+# Per-project state migration:
+bash ~/Antigravity/agentm/scripts/migrate-harness-to-vault.sh ~/path/to/repo
+
+# Verify:
+ls "$MEMORY_VAULT_PATH/projects/<slug>/_harness/"
+
+# Optional cleanup once verified:
+bash ~/Antigravity/agentm/scripts/migrate-harness-to-vault.sh --cleanup ~/path/to/repo
+
+# Rollback at any time:
+bash ~/Antigravity/agentm/scripts/migrate-harness-to-vault.sh --rollback ~/path/to/repo
+```
+
+Operators who pulled v4.0.0 but haven't run any migration command continue working unchanged — the resolver chain falls back to legacy `<project>/.harness/<file>` paths with a one-warn-per-session-per-file deprecation notice.
+
+### Cross-references
+
+- **HLD updates:**
+  - [agent-memory-evolution.md § V4 release milestones](https://github.com/alexherrero/crickets/blob/main/wiki/explanation/designs/agent-memory-evolution.md#v4-release-milestones) — V4.3 subsection.
+  - [device-wide-architecture.md § Update history](https://github.com/alexherrero/crickets/blob/main/wiki/explanation/designs/device-wide-architecture.md) — v0.3 entry.
+- **Plan:** `.harness/PLAN.md` plan #20 (now vault-backed at `<vault>/projects/agentm/_harness/PLAN.md`).
+- **Locked design calls** in plan #20: DC-1 (`.evidence-reads` stays per-cwd); DC-2 (warn-once-per-session-per-file); DC-3 (`.project-mode` lives vault-side at `<vault>/projects/<slug>/_harness/.project-mode`); DC-4 (marker file `.migrated-from-pre-v4.1` matches semver boundary).
+- **Dogfood findings (plan #20 task 9):** 3 bugs caught + fixed mid-session (preview-sweep gap; `_idea-incubator/` wikilinks; stale `github.repo` in agentm's project.json). 6 watchlist items deferred to operator's real-use sessions post-release.
+
+### Deferred to subsequent v4.x releases
+
+- **Hard-cut deprecation** of legacy `<project>/.harness/` paths — ships at the eventual deprecation release (likely v4.2.0 or v4.3.0) once migration is fully dogfooded across operator's vault for ~weeks of real use.
+- **V4 #37** (vec-index drift detection) — next plan after #26 closes; benefits from operating against migrated state.
+- **V4 #30** (global-install harness + `--scope user` default + auto-stay-in-sync) — follows #37.
+- **Mobile-readable summary head on `progress.md`** — deferred until real-use measurement confirms it's needed.
+- **Recall-exclusion patterns for `<vault>/projects/<slug>/_harness/**`** — deferred until real `/memory search` against post-migration vault surfaces measurable noise.
+
+---
+
 ## [v4.0.0] — 2026-05-27 — V4 device-wide era opens: compound surface absorbed from Crickets
 
 **MAJOR.** V4 #36 reorganization. Agent M absorbs the compound skills (`memory`, `design`, `diataxis-author`, `ship-release`), the four memory hooks (`memory-recall-session-start`, `memory-recall-prompt-submit`, `memory-reflect-stop`, `memory-reflect-idle`), the `evidence-tracker` hook, the `memory-idea-researcher` sub-agent, and the `plugins/` tree (including `example-plugin` and the `install-plugin.sh` user-global plugin installer) — all of which previously shipped from Crickets v1.x. Per [ADR 0012](https://github.com/alexherrero/crickets/blob/main/wiki/explanation/decisions/0012-device-wide-by-default.md) (device-wide-by-default), Agent M is now the canonical home for agentic-memory primitives + compound flows that turn the harness into a learning environment; Crickets narrows to base primitives universal to any project. Paired with **Crickets v2.0.0** — see the [Crickets v2.0.0 release notes](https://github.com/alexherrero/crickets/releases/tag/v2.0.0). This release **opens the V4 era**: subsequent v4.x builds (state migration, global install scope, auto-detect bootstrap, vault-context documenter, etc.) operate against this cleanly-bounded repo layout.
