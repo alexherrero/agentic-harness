@@ -70,6 +70,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # gitleaks needs full history so it can walk back to the parent
+          # commit when scanning a push (gitleaks-action runs
+          # `git log ...<base>^..<head>`). Default shallow checkout (depth=1)
+          # breaks the `^` walk with "unknown revision" — see actions/checkout
+          # docs.
+          fetch-depth: 0
       - name: Run check-no-pii.sh (regex scanner)
         run: bash scripts/check-no-pii.sh --all
       - name: Run gitleaks (industry-standard secret scanner)
