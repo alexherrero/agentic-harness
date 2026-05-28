@@ -100,11 +100,11 @@ class TestConfigFileMigration(unittest.TestCase):
 
     def test_b2_write_preserves_existing_vault_path(self) -> None:
         """If the caller already set vault_path, _write_state() preserves it."""
-        state = {"mode": "source", "vault_path": "/Users/alex/vault"}
+        state = {"mode": "source", "vault_path": "/srv/test-vault"}
         iss._write_state(self.prefix, state)
 
         on_disk = json.loads(self.config_path.read_text(encoding="utf-8"))
-        self.assertEqual(on_disk["vault_path"], "/Users/alex/vault")
+        self.assertEqual(on_disk["vault_path"], "/srv/test-vault")
         self.assertEqual(on_disk["schema_version"], 2)
 
     def test_b3_write_does_not_mutate_caller_dict(self) -> None:
@@ -129,7 +129,7 @@ class TestConfigFileMigration(unittest.TestCase):
             "schema_version": 2,
             "mode": "source",
             "harness_version": "v4.5.1",
-            "vault_path": "/Users/alex/vault",
+            "vault_path": "/srv/test-vault",
         }
         self.config_path.write_text(json.dumps(payload), encoding="utf-8")
         self.assertFalse(self.legacy_path.is_file())
@@ -206,12 +206,12 @@ class TestConfigFileMigration(unittest.TestCase):
         self.legacy_path.write_text(json.dumps(legacy_payload), encoding="utf-8")
 
         state = iss._read_state(self.prefix)
-        state["vault_path"] = "/Users/alex/vault"
+        state["vault_path"] = "/srv/test-vault"
         iss._write_state(self.prefix, state)
 
         rt = iss._read_state(self.prefix)
         self.assertEqual(rt["schema_version"], 2)
-        self.assertEqual(rt["vault_path"], "/Users/alex/vault")
+        self.assertEqual(rt["vault_path"], "/srv/test-vault")
         self.assertEqual(rt["mode"], "source")
         self.assertEqual(rt["source_clones"], legacy_payload["source_clones"])
         self.assertEqual(rt["harness_version"], "v4.5.0")
