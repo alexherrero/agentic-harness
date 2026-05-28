@@ -180,8 +180,21 @@ _agentm_vault_first_run_prompt() {
         # Find directories containing _meta/repos.json (vault marker) OR .obsidian/.
         # Match parent dir of either marker. Bounded by max-depth 5 to allow the
         # marker dir to be 1 level deeper than the vault root.
+        #
+        # Prune common noise dirs that can host stray markers but never a real
+        # vault: trashes (`.Trash`, `.Trash-NNN`, `.Trashes`), GoogleDrive +
+        # macOS scratch (`.tmp`), macOS FSEvents/Spotlight metadata, and Drive's
+        # shortcut-target shadow tree. Operator-reported as false-positives
+        # during v4.5.1 task 4 smoke testing.
         local found
         found="$($_timeout_cmd find "$probe_root" -maxdepth 5 \
+            \( -name '.Trash*' \
+               -o -name '.tmp' \
+               -o -name '.fseventsd' \
+               -o -name '.Spotlight-V100' \
+               -o -name '.shortcut-targets-by-id' \
+            \) -prune \
+            -o \
             \( -path '*/_meta/repos.json' -o -path '*/.obsidian' \) \
             -print 2>/dev/null | head -20 || true)"
         local marker
