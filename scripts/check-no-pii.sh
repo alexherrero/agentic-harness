@@ -105,6 +105,7 @@ SELF_SKIP_PATHS=(
     'skills/pii-scrubber/SKILL.md'
     'templates/hooks/pre-push'
     'CONTRIBUTING.md'
+    'lib/install/.checksums.txt'   # generated SHA256 file; hex substrings false-positive on phone-us regex
 )
 
 is_self_skip() {

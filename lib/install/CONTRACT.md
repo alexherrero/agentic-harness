@@ -12,6 +12,10 @@ Both `agentm` and `crickets` are installers — they read content from their own
 lib/install/
 ├── bash/primitives.sh           # POSIX (bash 4+) install primitives
 ├── pwsh/primitives.ps1          # PowerShell 7+ install primitives
+├── python/                      # cross-repo Python helpers (V4 #30 task 8)
+│   ├── install_state.py         # probe + persist source-clone vs release mode
+│   ├── install_symlinks.py      # source-mode symlink primitive (DC-7)
+│   └── install_copy.py          # release-mode SHA256-aware copy primitive
 ├── CONTRACT.md                  # this file
 └── .checksums.txt               # SHA-256 of every file above; verified by check-lib-parity
 ```

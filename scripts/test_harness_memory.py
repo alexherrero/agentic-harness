@@ -1865,7 +1865,7 @@ class TestRepoRegistryCLI(unittest.TestCase):
 # V4 #30 plan #22 task 3 — install_state probe + persist
 # -----------------------------------------------------------------------------
 
-_INSTALL_STATE_PATH = _HERE / "install_state.py"
+_INSTALL_STATE_PATH = _HERE.parent / "lib" / "install" / "python" / "install_state.py"
 _spec_is = _ilu.spec_from_file_location("install_state", _INSTALL_STATE_PATH)
 assert _spec_is is not None and _spec_is.loader is not None
 install_state = _ilu.module_from_spec(_spec_is)
@@ -2109,7 +2109,7 @@ class TestInstallStateCLI(unittest.TestCase):
 # V4 #30 plan #22 task 4 — install_symlinks (source-mode symlink primitive)
 # -----------------------------------------------------------------------------
 
-_INSTALL_SYMLINKS_PATH = _HERE / "install_symlinks.py"
+_INSTALL_SYMLINKS_PATH = _HERE.parent / "lib" / "install" / "python" / "install_symlinks.py"
 _spec_isy = _ilu.spec_from_file_location("install_symlinks", _INSTALL_SYMLINKS_PATH)
 assert _spec_isy is not None and _spec_isy.loader is not None
 install_symlinks = _ilu.module_from_spec(_spec_isy)
@@ -2320,7 +2320,7 @@ class TestInstallSymlinksCLI(unittest.TestCase):
 # V4 #30 plan #22 task 5 — install_copy (release-mode copy primitive)
 # -----------------------------------------------------------------------------
 
-_INSTALL_COPY_PATH = _HERE / "install_copy.py"
+_INSTALL_COPY_PATH = _HERE.parent / "lib" / "install" / "python" / "install_copy.py"
 _spec_ic = _ilu.spec_from_file_location("install_copy", _INSTALL_COPY_PATH)
 assert _spec_ic is not None and _spec_ic.loader is not None
 install_copy = _ilu.module_from_spec(_spec_ic)

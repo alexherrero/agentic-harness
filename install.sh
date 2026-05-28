@@ -32,11 +32,36 @@ HARNESS_VERSION="$(git -C "$HARNESS_ROOT" describe --tags --abbrev=0 2>/dev/null
 INSTALL_HOOKS=0
 UPDATE_MODE=0
 TARGET=""
+SCOPE="project"  # V4 #30 task 8: --scope user|project. Default 'project' for
+                 # v4.3.0 backward compat; default flips to 'user' in a future
+                 # release once dogfood (task 11) confirms the new path works.
 
-for arg in "$@"; do
+# Parse with shift-based loop to handle `--scope user` (value follows flag)
+while [[ $# -gt 0 ]]; do
+  arg="$1"
   case "$arg" in
-    --hooks) INSTALL_HOOKS=1 ;;
-    --update) UPDATE_MODE=1 ;;
+    --hooks) INSTALL_HOOKS=1; shift ;;
+    --update) UPDATE_MODE=1; shift ;;
+    --scope)
+      if [[ -z "${2:-}" ]]; then
+        echo "Error: --scope requires a value (user|project)" >&2
+        exit 1
+      fi
+      SCOPE="$2"
+      if [[ "$SCOPE" != "user" && "$SCOPE" != "project" ]]; then
+        echo "Error: --scope must be 'user' or 'project', got: $SCOPE" >&2
+        exit 1
+      fi
+      shift 2
+      ;;
+    --scope=*)
+      SCOPE="${arg#--scope=}"
+      if [[ "$SCOPE" != "user" && "$SCOPE" != "project" ]]; then
+        echo "Error: --scope must be 'user' or 'project', got: $SCOPE" >&2
+        exit 1
+      fi
+      shift
+      ;;
     -h|--help)
       sed -n 's/^# \{0,1\}//p' "$0" | head -22
       exit 0
@@ -51,14 +76,85 @@ for arg in "$@"; do
         exit 1
       fi
       TARGET="$arg"
+      shift
       ;;
   esac
 done
 
-if [[ -z "$TARGET" ]]; then
-  echo "Usage: $0 [--hooks] [--update] <target-project-path>" >&2
+# --scope user doesn't require a positional TARGET (install prefix is ~/.claude/);
+# --scope project requires one.
+if [[ "$SCOPE" == "project" && -z "$TARGET" ]]; then
+  echo "Usage: $0 [--hooks] [--update] [--scope user|project] <target-project-path>" >&2
+  echo "  --scope user: install customizations to ~/.claude/ (target not required)" >&2
+  echo "  --scope project (default): install to <target>/.claude/" >&2
   exit 1
 fi
+
+# ── --scope user dispatch (V4 #30 task 8) ───────────────────────────────────
+# When --scope user, install customizations into ~/.claude/ via the symlink
+# (source mode) or copy (release mode) primitive. Skip the per-project
+# install flow entirely (V4 #26 moved state to vault; under user scope,
+# nothing per-project is created).
+
+if [[ "$SCOPE" == "user" ]]; then
+  USER_INSTALL_PREFIX="${AGENTM_INSTALL_PREFIX:-$HOME/.claude}"
+  mkdir -p "$USER_INSTALL_PREFIX"
+  echo "==> installing agentm (--scope user) into: $USER_INSTALL_PREFIX (version $HARNESS_VERSION)"
+
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "Error: --scope user requires python3 on PATH" >&2
+    exit 1
+  fi
+
+  # Detect install mode (source vs release)
+  DETECT_JSON="$(python3 "$HARNESS_ROOT/lib/install/python/install_state.py" detect 2>/dev/null || echo '{"mode":"release","source_clones":{}}')"
+  MODE="$(echo "$DETECT_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('mode', 'release'))")"
+  echo "    install mode: $MODE"
+
+  if [[ "$MODE" == "source" ]]; then
+    # Source-mode: symlink customizations subset from source clones
+    SOURCE_FLAGS=()
+    [[ -d "$HOME/Antigravity/agentm" ]] && SOURCE_FLAGS+=(--agentm "$HOME/Antigravity/agentm")
+    [[ -d "$HOME/Antigravity/crickets" ]] && SOURCE_FLAGS+=(--crickets "$HOME/Antigravity/crickets")
+    if [[ ${#SOURCE_FLAGS[@]} -gt 0 ]]; then
+      python3 "$HARNESS_ROOT/lib/install/python/install_symlinks.py" \
+        "$USER_INSTALL_PREFIX" "${SOURCE_FLAGS[@]}" > /dev/null
+      echo "    symlinks: created"
+    fi
+  else
+    # Release-mode: copy customizations from this harness's source tree
+    # (the operator who ran install.sh has the source available right here).
+    # Walk relevant dirs.
+    for src_subdir in harness/agents harness/skills harness/hooks adapters/claude-code; do
+      if [[ -d "$HARNESS_ROOT/$src_subdir" ]]; then
+        python3 "$HARNESS_ROOT/lib/install/python/install_copy.py" \
+          "$HARNESS_ROOT/$src_subdir" "$USER_INSTALL_PREFIX" >/dev/null 2>&1 || true
+      fi
+    done
+    echo "    customizations: copied"
+  fi
+
+  # Persist install state
+  python3 "$HARNESS_ROOT/lib/install/python/install_state.py" persist \
+    "$USER_INSTALL_PREFIX" \
+    --harness-version "$HARNESS_VERSION" \
+    --installer-source "$HARNESS_ROOT/install.sh" > /dev/null
+
+  # Install agentm-update launcher to ~/.local/bin (if writable)
+  USER_BIN="${HOME}/.local/bin"
+  mkdir -p "$USER_BIN"
+  if [[ -f "$HARNESS_ROOT/templates/bin/agentm-update" ]]; then
+    cp "$HARNESS_ROOT/templates/bin/agentm-update" "$USER_BIN/agentm-update"
+    chmod +x "$USER_BIN/agentm-update"
+    echo "    launcher: $USER_BIN/agentm-update (add ~/.local/bin to PATH if not already)"
+  fi
+
+  echo "==> done (--scope user)"
+  exit 0
+fi
+
+# ── --scope project (default; legacy per-project install) ───────────────────
+# Existing per-project install flow continues unchanged below.
 
 if [[ ! -d "$TARGET" ]]; then
   echo "Error: target directory does not exist: $TARGET" >&2
@@ -537,9 +633,10 @@ fi
 # source-vs-release dispatch in tasks 4-5.
 
 if command -v python3 >/dev/null 2>&1; then
-  python3 "$HARNESS_ROOT/scripts/install_state.py" persist \
+  python3 "$HARNESS_ROOT/lib/install/python/install_state.py" persist \
     .claude \
-    --harness-version "$HARNESS_VERSION" >/dev/null 2>&1 || true
+    --harness-version "$HARNESS_VERSION" \
+    --installer-source "$HARNESS_ROOT/install.sh" >/dev/null 2>&1 || true
 fi
 
 # ── record version ──────────────────────────────────────────────────────────

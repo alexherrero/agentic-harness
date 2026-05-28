@@ -26,6 +26,8 @@
 param(
     [switch]$Hooks,
     [switch]$Update,
+    [ValidateSet('user', 'project')]
+    [string]$Scope = 'project',
     [Parameter(Position = 0)]
     [string]$Target
 )
@@ -45,10 +47,82 @@ try {
     if ($LASTEXITCODE -eq 0 -and $v) { $HarnessVersion = $v.Trim() }
 } catch { }
 
-if (-not $Target) {
-    Write-Error 'Usage: install.ps1 [-Hooks] [-Update] <target-project-path>'
+if ($Scope -eq 'project' -and -not $Target) {
+    Write-Error 'Usage: install.ps1 [-Hooks] [-Update] [-Scope user|project] <target-project-path>
+  -Scope user: install customizations to ~/.claude/ (target not required)
+  -Scope project (default): install to <target>/.claude/'
     exit 1
 }
+
+# ── -Scope user dispatch (V4 #30 task 8) ────────────────────────────────────
+if ($Scope -eq 'user') {
+    $UserInstallPrefix = if ($env:AGENTM_INSTALL_PREFIX) {
+        $env:AGENTM_INSTALL_PREFIX
+    } else {
+        Join-Path $HOME '.claude'
+    }
+    New-Item -ItemType Directory -Path $UserInstallPrefix -Force | Out-Null
+    Write-Host "==> installing agentm (-Scope user) into: $UserInstallPrefix (version $HarnessVersion)"
+
+    $pythonCmd = Get-Command python3 -ErrorAction SilentlyContinue
+    if (-not $pythonCmd) { $pythonCmd = Get-Command python -ErrorAction SilentlyContinue }
+    if (-not $pythonCmd) {
+        Write-Error '-Scope user requires python3 on PATH'
+        exit 1
+    }
+
+    $installStatePy = Join-Path $HarnessRoot 'lib/install/python/install_state.py'
+    $installSymlinksPy = Join-Path $HarnessRoot 'lib/install/python/install_symlinks.py'
+    $installCopyPy = Join-Path $HarnessRoot 'lib/install/python/install_copy.py'
+
+    # Detect install mode
+    $detectJson = & $pythonCmd.Source $installStatePy 'detect' 2>$null
+    $mode = 'release'
+    try {
+        $detect = $detectJson | ConvertFrom-Json
+        if ($detect.mode) { $mode = $detect.mode }
+    } catch { }
+    Write-Host "    install mode: $mode"
+
+    if ($mode -eq 'source') {
+        $args = @($UserInstallPrefix)
+        $agentmClone = Join-Path $HOME 'Antigravity/agentm'
+        $cricketsClone = Join-Path $HOME 'Antigravity/crickets'
+        if (Test-Path $agentmClone) { $args += '--agentm'; $args += $agentmClone }
+        if (Test-Path $cricketsClone) { $args += '--crickets'; $args += $cricketsClone }
+        & $pythonCmd.Source $installSymlinksPy @args | Out-Null
+        Write-Host '    symlinks: created'
+    } else {
+        # Release-mode copy from this harness's source tree
+        foreach ($srcSubdir in @('harness/agents', 'harness/skills', 'harness/hooks', 'adapters/claude-code')) {
+            $srcPath = Join-Path $HarnessRoot $srcSubdir
+            if (Test-Path $srcPath) {
+                & $pythonCmd.Source $installCopyPy $srcPath $UserInstallPrefix *>$null
+            }
+        }
+        Write-Host '    customizations: copied'
+    }
+
+    # Persist install state
+    & $pythonCmd.Source $installStatePy 'persist' `
+        $UserInstallPrefix `
+        '--harness-version' $HarnessVersion `
+        '--installer-source' (Join-Path $HarnessRoot 'install.ps1') | Out-Null
+
+    # Install agentm-update launcher
+    $userBin = Join-Path $HOME '.local/bin'
+    New-Item -ItemType Directory -Path $userBin -Force | Out-Null
+    $launcherSrc = Join-Path $HarnessRoot 'templates/bin/agentm-update.ps1'
+    if (Test-Path $launcherSrc) {
+        Copy-Item -LiteralPath $launcherSrc -Destination (Join-Path $userBin 'agentm-update.ps1') -Force
+        Write-Host "    launcher: $userBin\agentm-update.ps1 (add ~/.local/bin to PATH if not already)"
+    }
+
+    Write-Host '==> done (-Scope user)'
+    exit 0
+}
+
+# ── -Scope project (default; legacy per-project install) ────────────────────
 if (-not (Test-Path -LiteralPath $Target -PathType Container)) {
     Write-Error "target directory does not exist: $Target"
     exit 1
@@ -462,8 +536,9 @@ $pythonCmd = Get-Command python3 -ErrorAction SilentlyContinue
 if (-not $pythonCmd) { $pythonCmd = Get-Command python -ErrorAction SilentlyContinue }
 if ($pythonCmd) {
     try {
-        & $pythonCmd.Source (Join-Path $HarnessRoot 'scripts/install_state.py') 'persist' `
-            '.claude' '--harness-version' $HarnessVersion *>$null
+        & $pythonCmd.Source (Join-Path $HarnessRoot 'lib/install/python/install_state.py') 'persist' `
+            '.claude' '--harness-version' $HarnessVersion `
+            '--installer-source' (Join-Path $HarnessRoot 'install.ps1') *>$null
     } catch {
         # Silent failure — install proceeds; install-state.json is best-effort
     }
