@@ -182,9 +182,12 @@ def register_repo(
     repos = data.get("repos", [])
 
     # Build the entry — only include fields that have values (avoid writing nulls).
-    new_entry: dict[str, Any] = {"slug": slug, "root_path": str(Path(root_path))}
+    # Use POSIX-style paths (forward slashes) for vault portability: the registry
+    # is GDrive-synced and read by both Mac/Linux + Windows clients; native
+    # separators on one would break path semantics on the other.
+    new_entry: dict[str, Any] = {"slug": slug, "root_path": Path(root_path).as_posix()}
     if wiki_path is not None:
-        new_entry["wiki_path"] = str(Path(wiki_path))
+        new_entry["wiki_path"] = Path(wiki_path).as_posix()
     if harness_state_mode is not None:
         new_entry["harness_state_mode"] = harness_state_mode
 

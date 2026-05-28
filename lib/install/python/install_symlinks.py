@@ -172,11 +172,18 @@ def _classify_existing(link: Path, expected_source: Path) -> str:
         # Resolve relative-to-link if necessary
         if not current.is_absolute():
             current = (link.parent / current).resolve()
+        # Compare via os.path.samefile when both targets exist — handles
+        # Windows UNC-prefix differences (//?/C:/... vs C:/...) that break
+        # naive Path.resolve() equality. Falls back to resolve-compare if
+        # samefile errors (one side absent → broken symlink).
         try:
+            if current.exists() and expected_source.exists():
+                if os.path.samefile(current, expected_source):
+                    return "symlink-correct"
+                return "symlink-wrong"
             if current.resolve() == expected_source.resolve():
                 return "symlink-correct"
         except (OSError, FileNotFoundError):
-            # Target gone → broken
             return "symlink-broken"
         # Pointing somewhere else
         return "symlink-wrong" if current.exists() else "symlink-broken"
