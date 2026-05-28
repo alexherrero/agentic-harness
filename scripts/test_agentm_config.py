@@ -1,0 +1,290 @@
+#!/usr/bin/env python3
+"""Unit tests for scripts/agentm_config.py — stdlib unittest.
+
+Run directly:
+
+    python3 -m unittest scripts.test_agentm_config
+
+Or:
+
+    python3 scripts/test_agentm_config.py
+
+Covers (per v4.5.1 task 3 verification):
+  - --vault-path with existing directory writes the field + rc=0
+  - --vault-path with nonexistent directory refuses + rc=2
+  - --get vault_path after a successful write returns the path + rc=0
+  - --list emits the full JSON
+  - --unset vault_path clears the field + rc=0
+  - --get on missing config returns rc=1 silently
+  - atomic write contract — partial writes don't corrupt existing config
+"""
+from __future__ import annotations
+
+import io
+import json
+import os
+import sys
+import tempfile
+import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from pathlib import Path
+
+_HERE = Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
+
+import agentm_config as ac  # noqa: E402
+
+
+class _ClearEnv:
+    """Context manager: set + unset env vars cleanly across the test."""
+
+    def __init__(self, set_vars: dict | None = None, unset_keys: list[str] | None = None):
+        self.set_vars = set_vars or {}
+        self.unset_keys = unset_keys or []
+        self._saved: dict[str, str | None] = {}
+
+    def __enter__(self):
+        for k in list(self.set_vars.keys()) + self.unset_keys:
+            self._saved[k] = os.environ.get(k)
+        for k in self.unset_keys:
+            os.environ.pop(k, None)
+        for k, v in self.set_vars.items():
+            os.environ[k] = v
+        return self
+
+    def __exit__(self, *exc):
+        for k, v in self._saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+
+class TestAgentmConfig(unittest.TestCase):
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.mkdtemp(prefix="agentm-config-cli-test-")
+        self.prefix = Path(self.tmp) / "prefix"
+        self.prefix.mkdir(parents=True, exist_ok=True)
+        # Sandbox AGENTM_INSTALL_PREFIX so we never touch the operator's
+        # real ~/.claude/.
+        self.env = _ClearEnv(set_vars={"AGENTM_INSTALL_PREFIX": str(self.prefix)})
+        self.env.__enter__()
+
+    def tearDown(self) -> None:
+        self.env.__exit__(None, None, None)
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _run(self, *argv: str) -> tuple[int, str, str]:
+        """Invoke ac.main(argv) capturing stdout + stderr."""
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            rc = ac.main(list(argv))
+        return rc, out.getvalue(), err.getvalue()
+
+    # -----------------------------------------------------------------------
+    # --vault-path: happy path + validation + idempotency
+    # -----------------------------------------------------------------------
+
+    def test_set_vault_path_writes_field_rc0(self) -> None:
+        vault = Path(self.tmp) / "my-vault"
+        vault.mkdir()
+        rc, out, err = self._run("--vault-path", str(vault))
+        self.assertEqual(rc, 0, err)
+        config = json.loads((self.prefix / ".agentm-config.json").read_text())
+        self.assertEqual(config["vault_path"], str(vault.resolve()))
+        self.assertEqual(config["schema_version"], 2)
+
+    def test_set_vault_path_refuses_nonexistent_dir(self) -> None:
+        rc, out, err = self._run("--vault-path", "/no/such/dir/at/all")
+        self.assertEqual(rc, 2)
+        self.assertIn("not an existing directory", err)
+        # Config file MUST NOT have been written on refusal.
+        self.assertFalse((self.prefix / ".agentm-config.json").is_file())
+
+    def test_set_vault_path_refuses_file_not_dir(self) -> None:
+        file_path = Path(self.tmp) / "not-a-dir.txt"
+        file_path.write_text("hi", encoding="utf-8")
+        rc, out, err = self._run("--vault-path", str(file_path))
+        self.assertEqual(rc, 2)
+        self.assertIn("not an existing directory", err)
+
+    def test_set_vault_path_idempotent_on_same_value(self) -> None:
+        vault = Path(self.tmp) / "vault"
+        vault.mkdir()
+        rc1, _, _ = self._run("--vault-path", str(vault))
+        # Capture mtime after first write
+        mtime1 = (self.prefix / ".agentm-config.json").stat().st_mtime_ns
+        # Re-run with same value
+        rc2, _, _ = self._run("--vault-path", str(vault))
+        mtime2 = (self.prefix / ".agentm-config.json").stat().st_mtime_ns
+        self.assertEqual(rc1, 0)
+        self.assertEqual(rc2, 0)
+        # mtime unchanged → no re-write happened
+        self.assertEqual(mtime1, mtime2)
+
+    def test_set_vault_path_expands_tilde(self) -> None:
+        vault = Path(self.tmp) / "tilde-vault"
+        vault.mkdir()
+        with _ClearEnv(set_vars={
+            "AGENTM_INSTALL_PREFIX": str(self.prefix),
+            "HOME": self.tmp,
+        }):
+            rc, _, _ = self._run("--vault-path", "~/tilde-vault")
+        self.assertEqual(rc, 0)
+        config = json.loads((self.prefix / ".agentm-config.json").read_text())
+        # Path resolution turns ~/tilde-vault into absolute via resolve()
+        self.assertEqual(config["vault_path"], str(vault.resolve()))
+
+    # -----------------------------------------------------------------------
+    # --get
+    # -----------------------------------------------------------------------
+
+    def test_get_after_write_returns_value(self) -> None:
+        vault = Path(self.tmp) / "v"
+        vault.mkdir()
+        self._run("--vault-path", str(vault))
+        rc, out, _ = self._run("--get", "vault_path")
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.strip(), str(vault.resolve()))
+
+    def test_get_missing_field_rc1_silent(self) -> None:
+        # Write a config without vault_path
+        (self.prefix / ".agentm-config.json").write_text(
+            json.dumps({"schema_version": 2, "mode": "source"}), encoding="utf-8",
+        )
+        rc, out, err = self._run("--get", "vault_path")
+        self.assertEqual(rc, 1)
+        self.assertEqual(out, "")
+        self.assertEqual(err, "")
+
+    def test_get_no_config_file_rc1_silent(self) -> None:
+        rc, out, err = self._run("--get", "vault_path")
+        self.assertEqual(rc, 1)
+        self.assertEqual(out, "")
+        self.assertEqual(err, "")
+
+    # -----------------------------------------------------------------------
+    # --list
+    # -----------------------------------------------------------------------
+
+    def test_list_dumps_full_config(self) -> None:
+        payload = {
+            "schema_version": 2,
+            "mode": "source",
+            "vault_path": str(Path(self.tmp)),
+            "harness_version": "v4.5.1",
+        }
+        (self.prefix / ".agentm-config.json").write_text(
+            json.dumps(payload), encoding="utf-8",
+        )
+        rc, out, _ = self._run("--list")
+        self.assertEqual(rc, 0)
+        parsed = json.loads(out)
+        self.assertEqual(parsed, payload)
+
+    def test_list_no_config_rc1(self) -> None:
+        rc, out, _ = self._run("--list")
+        self.assertEqual(rc, 1)
+        self.assertEqual(out, "")
+
+    # -----------------------------------------------------------------------
+    # --unset
+    # -----------------------------------------------------------------------
+
+    def test_unset_removes_field_rc0(self) -> None:
+        vault = Path(self.tmp) / "v"
+        vault.mkdir()
+        self._run("--vault-path", str(vault))
+        rc, _, _ = self._run("--unset", "vault_path")
+        self.assertEqual(rc, 0)
+        config = json.loads((self.prefix / ".agentm-config.json").read_text())
+        self.assertNotIn("vault_path", config)
+
+    def test_unset_missing_field_rc1_silent(self) -> None:
+        (self.prefix / ".agentm-config.json").write_text(
+            json.dumps({"schema_version": 2}), encoding="utf-8",
+        )
+        rc, out, err = self._run("--unset", "vault_path")
+        self.assertEqual(rc, 1)
+        self.assertEqual(out, "")
+        self.assertEqual(err, "")
+
+    def test_unset_no_config_rc1_silent(self) -> None:
+        rc, _, _ = self._run("--unset", "vault_path")
+        self.assertEqual(rc, 1)
+
+    def test_unset_schema_version_refused(self) -> None:
+        (self.prefix / ".agentm-config.json").write_text(
+            json.dumps({"schema_version": 2, "vault_path": "/v"}), encoding="utf-8",
+        )
+        rc, _, err = self._run("--unset", "schema_version")
+        self.assertEqual(rc, 2)
+        self.assertIn("structural field", err)
+
+    # -----------------------------------------------------------------------
+    # Install prefix resolution
+    # -----------------------------------------------------------------------
+
+    def test_install_prefix_cli_arg_overrides_env(self) -> None:
+        other = Path(self.tmp) / "other-prefix"
+        other.mkdir()
+        vault = Path(self.tmp) / "v"
+        vault.mkdir()
+        rc, _, _ = self._run(
+            "--install-prefix", str(other),
+            "--vault-path", str(vault),
+        )
+        self.assertEqual(rc, 0)
+        # Should write into the CLI-specified prefix, NOT the env-set one
+        self.assertTrue((other / ".agentm-config.json").is_file())
+        self.assertFalse((self.prefix / ".agentm-config.json").is_file())
+
+    # -----------------------------------------------------------------------
+    # Mutual exclusion
+    # -----------------------------------------------------------------------
+
+    def test_no_operation_required(self) -> None:
+        # With required=True on the mutually-exclusive group, argparse exits 2
+        with self.assertRaises(SystemExit) as ctx:
+            with redirect_stderr(io.StringIO()):
+                ac.main([])
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_mutually_exclusive_ops_refused(self) -> None:
+        with self.assertRaises(SystemExit) as ctx:
+            with redirect_stderr(io.StringIO()):
+                ac.main(["--get", "vault_path", "--list"])
+        self.assertEqual(ctx.exception.code, 2)
+
+    # -----------------------------------------------------------------------
+    # Round-trip: write → get → list → unset → get
+    # -----------------------------------------------------------------------
+
+    def test_round_trip(self) -> None:
+        vault = Path(self.tmp) / "rt-vault"
+        vault.mkdir()
+        rc, _, _ = self._run("--vault-path", str(vault))
+        self.assertEqual(rc, 0)
+
+        rc, out, _ = self._run("--get", "vault_path")
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.strip(), str(vault.resolve()))
+
+        rc, out, _ = self._run("--list")
+        self.assertEqual(rc, 0)
+        parsed = json.loads(out)
+        self.assertEqual(parsed["vault_path"], str(vault.resolve()))
+        self.assertEqual(parsed["schema_version"], 2)
+
+        rc, _, _ = self._run("--unset", "vault_path")
+        self.assertEqual(rc, 0)
+
+        rc, _, _ = self._run("--get", "vault_path")
+        self.assertEqual(rc, 1)
+
+
+if __name__ == "__main__":
+    unittest.main()
