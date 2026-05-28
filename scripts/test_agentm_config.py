@@ -125,6 +125,10 @@ class TestAgentmConfig(unittest.TestCase):
         # mtime unchanged → no re-write happened
         self.assertEqual(mtime1, mtime2)
 
+    # Skipped on Windows: os.path.expanduser uses USERPROFILE, not HOME, so
+    # the env-override pattern is POSIX-only. Production --vault-path delegates
+    # to os.path.expanduser() which handles the platform difference correctly.
+    @unittest.skipIf(os.name == "nt", "tilde-via-HOME override is POSIX-only test setup")
     def test_set_vault_path_expands_tilde(self) -> None:
         vault = Path(self.tmp) / "tilde-vault"
         vault.mkdir()

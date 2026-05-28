@@ -254,7 +254,12 @@ class TestVaultPathResolutionOrder(unittest.TestCase):
             ):
                 self.assertIsNone(hm.vault_path())
 
-    # Bonus: vault_path with ~/ expansion works
+    # Bonus: vault_path with ~/ expansion works.
+    # Skipped on Windows: os.path.expanduser uses USERPROFILE on Windows, not
+    # HOME, so the env-override pattern this test uses to fake a home dir is
+    # POSIX-only. Production resolver uses os.path.expanduser() which handles
+    # the platform difference correctly; the gap is only in test setup.
+    @unittest.skipIf(os.name == "nt", "tilde-via-HOME override is POSIX-only test setup")
     def test_h_vault_path_tilde_expansion(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             vault = _make_vault(Path(tmp))
