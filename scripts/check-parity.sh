@@ -31,6 +31,12 @@ CANON_COMMANDS=(bugfix plan release review setup work)
 CANON_AGENTS=(adversarial-reviewer adversarial-reviewer-cross documenter explorer)
 CANON_SKILLS=(doctor migrate-to-diataxis)
 
+# Utility slash commands (V4 #30 plan 2 task 7+) — claude-code only.
+# Not cross-host parity-enforced; live alongside CANON_COMMANDS in
+# adapters/claude-code/commands/. Antigravity + Gemini operators invoke
+# the underlying scripts directly.
+CANON_UTIL_COMMANDS=(recent-wiki-changes)
+
 fail=0
 
 # Helper: names in a dir, filtered by extension (no ext → dirnames).
@@ -64,7 +70,9 @@ assert_set() {
 }
 
 echo "== claude-code =="
-assert_set "claude-code/commands" adapters/claude-code/commands md "${CANON_COMMANDS[@]}"
+# Claude-code commands = phase-commands + utility commands (latter claude-code-only)
+all_cc_commands=("${CANON_COMMANDS[@]}" "${CANON_UTIL_COMMANDS[@]}")
+assert_set "claude-code/commands" adapters/claude-code/commands md "${all_cc_commands[@]}"
 assert_set "claude-code/agents"   adapters/claude-code/agents   md "${CANON_AGENTS[@]}"
 assert_set "claude-code/skills"   adapters/claude-code/skills   ""  "${CANON_SKILLS[@]}"
 
