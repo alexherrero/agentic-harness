@@ -11,25 +11,28 @@ You are running the `doctor` skill. Full canonical spec: `harness/skills/doctor.
 - **`--live`** → default checks plus live probes (one dispatch per sub-agent, one dry-run per skill).
 - **`--live --verbose`** → same as `--live` but print raw probe output on each row.
 
-## Adapter detection
+## Adapter detection + install scope
 
-This is the Claude Code adapter, so expect:
-- `.claude/commands/*.md` (phase commands)
-- `.claude/agents/*.md` (sub-agents)
-- `.claude/skills/*/SKILL.md` (skills)
-- `.claude/settings.json` (hooks, if `install.sh --hooks` was used)
+This is the Claude Code adapter. Resolve install scope before checking primitives:
 
-If `.claude/` is missing, abort: `doctor: no Claude Code install detected — run install.sh /path/to/project`.
+- **Project scope** — `<project>/.claude/commands/` populated. Expected sets must live under `<project>/.claude/`.
+- **User scope (default since V4 #30 v4.3.0)** — `<project>/.claude/commands/` empty/absent but `~/.claude/commands/` populated. Run the full structural battery against `~/.claude/`.
+- **Mixed** — both populated. Validate each scope's set independently.
+- **Neither** — abort: `doctor: no Claude Code install detected at project or user scope — run install.sh /path/to/project`.
+
+Use whichever scope holds the primitives as `$CC_ROOT` for the rest of the structural checks. Report the resolved scope on the output (`scope: user|project|mixed`).
 
 ## Default-mode checks
 
-Expected name sets (must match exactly — extras and missings both fail):
+Expected name sets:
 
-| Surface | Expected |
-|---|---|
-| `.claude/commands/*.md` | `bugfix, plan, release, review, setup, work` |
-| `.claude/agents/*.md` | `adversarial-reviewer, adversarial-reviewer-cross, documenter, explorer` |
-| `.claude/skills/*/` | `dependabot-fixer, doctor, migrate-to-diataxis, ship-release` |
+| Surface | Required | Optional (graceful-skip if absent) |
+|---|---|---|
+| `$CC_ROOT/commands/*.md` | `bugfix, plan, release, review, setup, work` | `recent-wiki-changes` (V4 #30 plan 2 / v4.4.0+) |
+| `$CC_ROOT/agents/*.md` | `adversarial-reviewer, adversarial-reviewer-cross, documenter, explorer` | `gemini-adapter-research, memory-idea-researcher` (harness); `adapt-evaluator, diataxis-evaluator, evaluator` (crickets) |
+| `$CC_ROOT/skills/*/` | `doctor, migrate-to-diataxis, wiki-author` (wiki-author since V4 #30 plan 2 / v4.4.0) | `design, diataxis-author, memory, ship-release` (harness compound); `dependabot-fixer, pii-scrubber` (crickets) |
+
+"Required" must be present and parse cleanly — missing or broken is FAIL. "Optional" is reported as `[OK] N present` or `[SKIP] not installed` — never FAIL. Extras outside both lists are reported as a soft `note:` row, not a failure.
 
 For each expected file:
 1. Exists at the right path.
@@ -37,9 +40,12 @@ For each expected file:
 3. `name:` field matches dirname — **only** for sub-agents and skills (which carry an explicit `name:`). Claude Code phase commands intentionally have no `name:` field; their name is implicit from the filename. Don't flag them for a missing `name:`.
 
 Then:
-4. `.harness/PLAN.md`, `.harness/progress.md`, `.harness/scripts/telemetry.sh` all exist.
+4. **State files (V4 #26-aware)**: Resolve via this two-step ladder:
+   - **Vault-resident (post-v4.1.0 default)** — shell out to `python3 <agentm-repo>/scripts/harness_memory.py vault-state-path PLAN.md` (and same for `progress.md` + `scripts/telemetry.sh`). The subcommand exits 0 + prints the path when resolved, exits 1 + empty output when no vault path is configured. If all three paths resolve and exist on disk, report `state files [OK] vault-resident — <vault-path>` and move on.
+   - **Legacy `.harness/`** — if the resolver returns nothing or the vault is unavailable, check `<project>/.harness/PLAN.md` + `<project>/.harness/progress.md` + `<project>/.harness/scripts/telemetry.sh`. Report `state files [OK] legacy .harness/` if all three present.
+   - FAIL only if neither path yields all three. An empty `.harness/` alongside a healthy vault resolution is the EXPECTED post-V4 #26 shape — not a fail.
 5. `AGENTS.md` + `CLAUDE.md` exist at repo root.
-6. If `.claude/settings.json` has a `hooks` block: every `command` string resolves to a file that exists; bash installer produced bash-shell commands (not pwsh).
+6. If `.claude/settings.json` has a `hooks` block: every `command` string resolves to a file that exists; bash installer produced bash-shell commands (not pwsh). Absent hooks block is OK — `install.sh --hooks` is opt-in.
 
 Report a pass/fail table. Exit here unless `--live` was passed.
 
@@ -50,9 +56,11 @@ Run in order. Stop at first foundational failure — structural breakage makes l
 ### 1. `explorer` dispatch
 
 Dispatch `explorer` with:
-> *Return the absolute path of `README.md` at the repo root, and the path of `.harness/PLAN.md`. One sentence each, no commentary.*
+> *Return the absolute path of `README.md` and `AGENTS.md` at the repo root. One sentence each, no commentary.*
 
 Pass: returns both absolute paths within 60s.
+
+(Earlier versions of this probe asked for `.harness/PLAN.md` — that path may not exist post-V4 #26 when state is vault-resident. `AGENTS.md` is a stable repo-root marker that doesn't move.)
 
 ### 2. `adversarial-reviewer` dispatch
 
@@ -96,13 +104,16 @@ Pass: verify command exits 0 on the empty file.
 ```
 doctor: claude-code — <PASS|FAIL>
 
+  scope:              user        (or: project | mixed)
+  state mode:         vault-resident   (or: legacy .harness/)
+
   structural:
-    phase-commands    [OK]  6/6 present, frontmatter valid
-    sub-agents        [OK]  4/4 present, frontmatter valid
-    skills            [OK]  4/4 present, frontmatter valid
-    state files       [OK]  PLAN.md + progress.md + telemetry.sh
+    phase-commands    [OK]  6/6 required + 1 optional (recent-wiki-changes) present
+    sub-agents        [OK]  4/4 required, 5 optional present
+    skills            [OK]  3/3 required, 6 optional present
+    state files       [OK]  vault-resident — <vault>/projects/<slug>/_harness/
     host wiring       [OK]  AGENTS.md + CLAUDE.md
-    hooks             [OK]  3/3 command paths resolve
+    hooks             [OK]  no hooks block (install.sh --hooks opt-in)
 
   live probes (--live):
     explorer          [OK]   2.1s

@@ -18,35 +18,40 @@ Default is deliberately cheap so `/doctor` can be the reflex "did my install lan
 
 Before any checks run, `doctor` detects which adapter is installed by looking for the canonical directory layout:
 
-| Adapter | Marker |
-|---|---|
-| Claude Code | `.claude/commands/` + `.claude/agents/` |
-| Antigravity | `.agent/workflows/` + `.agent/skills/` |
-| Gemini | `.gemini/commands/` + `.gemini/agents/` |
+| Adapter | Project-scope marker | User-scope marker |
+|---|---|---|
+| Claude Code | `<project>/.claude/commands/` + `<project>/.claude/agents/` | `~/.claude/commands/` + `~/.claude/agents/` |
+| Antigravity | `<project>/.agent/workflows/` + `<project>/.agents/skills/` | `~/.agents/skills/` |
+| Gemini | `<project>/.gemini/commands/` + `<project>/.gemini/agents/` | `~/.gemini/commands/` + `~/.gemini/agents/` |
+
+**Install scope detection (V4 #30 v4.3.0+).** Since v4.3.0, `install.sh --scope user` is the default. When the project-scope path is empty or absent but the user-scope path has the expected primitives, doctor reports `scope: user` and runs the full structural battery against `~/.claude/` (or the host equivalent). When both scopes have primitives, doctor reports `scope: mixed` and validates each scope's set independently. When neither has primitives, abort with `doctor: no harness adapter found at project or user scope — run install.sh first`.
 
 Multiple adapters may be present in the same project (the installer supports that). Run the full battery against each one found and report per-adapter.
-
-If no adapter is detected, abort with `doctor: no harness adapter found in .claude/, .agent/, or .gemini/ — run install.sh first`.
 
 ## Default-mode checks (structural)
 
 For each detected adapter, verify the expected name set is present and each file parses. The expected sets come from the same source as `scripts/check-parity.sh`:
 
-- **Phase commands**: `bugfix, plan, release, review, setup, work`.
-- **Sub-agents**: `adversarial-reviewer, adversarial-reviewer-cross, documenter, explorer`.
-- **Skills**: `doctor, migrate-to-diataxis` (harness-shipped; `dependabot-fixer` and `ship-release` migrated to `crickets` in v2.0.0 per ADR 0006).
+- **Phase commands** (required): `bugfix, plan, release, review, setup, work`. Plus `recent-wiki-changes` (V4 #30 plan 2, v4.4.0+) — graceful-skip if absent on a pre-v4.4.0 install.
+- **Sub-agents** (required): `adversarial-reviewer, adversarial-reviewer-cross, documenter, explorer`. Optional extras shipped by harness in V3+: `gemini-adapter-research, memory-idea-researcher`. Optional extras shipped by crickets: `adapt-evaluator, diataxis-evaluator, evaluator` (graceful-skip if crickets not paired).
+- **Skills** (required, harness-shipped): `doctor, migrate-to-diataxis, wiki-author` (wiki-author landed in V4 #30 plan 2 / v4.4.0). Optional harness-shipped compound skills: `design, diataxis-author, memory, ship-release` — graceful-skip if absent (they may be deferred via `install.sh --no-compound-skills` or similar). Optional crickets-shipped skills: `dependabot-fixer, pii-scrubber` — graceful-skip if crickets is not paired.
 
 For each expected item:
-1. The file exists at the adapter-specific path.
+1. The file exists at the adapter-specific path (project scope or user scope, whichever the install resolved to).
 2. The frontmatter YAML (markdown) or top-level TOML parses cleanly.
 3. **For surfaces that carry an explicit `name:` field**, the field matches the filename/dirname. Surfaces that carry `name:`: Claude Code sub-agents and skills, Antigravity skills (including sub-agents-as-skills), Gemini sub-agents. Surfaces *without* `name:` (name is implicit from filename): Claude Code phase commands, Antigravity workflows, Gemini TOML commands. Do **not** flag missing `name:` on those.
 
 Then:
-4. **State files**: `.harness/PLAN.md`, `.harness/progress.md`, `.harness/scripts/telemetry.sh` all exist.
+4. **State files (V4 #26-aware)**: Resolve via this two-step ladder:
+   - **Vault-resident (post-v4.1.0 default)** — invoke `python3 <agentm>/scripts/harness_memory.py vault-state-path PLAN.md` (and same for `progress.md`, `scripts/telemetry.sh`). The CLI exits 0 + prints the resolved path when the vault is reachable AND the project is registered; exits 1 + empty stdout otherwise (graceful-skip signal). PASS if the resolver returns a path that exists on disk.
+   - **Legacy `.harness/<file>` fallback** — if `vault-state-path` exits non-zero (vault unreachable from this shell, or project not registered), check `<project>/.harness/PLAN.md`, `<project>/.harness/progress.md`, `<project>/.harness/scripts/telemetry.sh`. PASS if all three exist.
+   - Report which mode resolved (e.g. `state files [OK] vault-resident — <vault>/projects/<slug>/_harness/` or `state files [OK] legacy .harness/`).
+   - FAIL only if neither resolution path produces all three files. A `.harness/` empty of state files alongside a healthy vault resolution is the EXPECTED V4 #26+ shape — not a fail.
 5. **Host wiring file**: `AGENTS.md` exists at repo root. Adapter-specific overlay file exists (`CLAUDE.md` for Claude Code, `.gemini/settings.json` for Gemini pointing at `AGENTS.md`).
 6. **Hooks** (Claude Code only, if `.claude/settings.json` contains a `hooks` block):
    - Every command string in `hooks[*][*].hooks[*].command` resolves to a file that exists.
    - The shell prefix matches the installer variant: bash installer produces `bash -c '...'`-style or direct shell invocations; pwsh installer produces `pwsh -File '...'` invocations. Mismatch is a fail.
+   - Absent hooks block is OK (not a fail) — `install.sh --hooks` is opt-in.
 
 ## `--live` probes
 
@@ -56,10 +61,12 @@ Run in order. First failure stops the battery for that adapter (the rest will on
 
 Dispatch the `explorer` sub-agent with a trivial prompt that only requires filesystem access:
 
-> *Return the absolute path of `README.md` at the repo root, and the path of `.harness/PLAN.md`. One sentence each, no commentary.*
+> *Return the absolute path of `README.md` and `AGENTS.md` at the repo root. One sentence each, no commentary.*
 
-**Pass criteria:** agent returns within 60s; output contains both `README.md` and `.harness/PLAN.md` as absolute paths; no tool-permission errors.
+**Pass criteria:** agent returns within 60s; output contains both absolute paths; no tool-permission errors.
 **Fail signals:** the sub-agent isn't visible to the host (adapter registration broken), permission denied on read (sandbox mis-wired), agent hallucinates paths without reading.
+
+The pre-V4 #26 form of this probe used `.harness/PLAN.md` as the second target. That path may not exist when state is vault-resident; `AGENTS.md` is a repo-root anchor that doesn't move.
 
 ### Probe 2: `adversarial-reviewer` sub-agent dispatch
 
@@ -152,13 +159,17 @@ test -f ~/.gemini/config/plugins/example-plugin/plugin.json    # if example-plug
 ```
 doctor: <adapter> — <PASS|FAIL>
 
+  scope:              user        (or: project | mixed)
+  state mode:         vault-resident   (or: legacy .harness/)
+
   structural:
-    phase-commands    [OK]  6/6 present, frontmatter valid
-    sub-agents        [OK]  4/4 present, frontmatter valid
-    skills            [OK]  4/4 present, frontmatter valid
-    state files       [OK]  PLAN.md + progress.md + telemetry.sh
+    phase-commands    [OK]  6/6 required + 1 optional (recent-wiki-changes) present
+    sub-agents        [OK]  4/4 required present, frontmatter valid
+    skills            [OK]  3/3 required (doctor, migrate-to-diataxis, wiki-author);
+                            4 optional harness-shipped + 2 crickets present
+    state files       [OK]  vault-resident — <vault>/projects/<slug>/_harness/
     host wiring       [OK]  AGENTS.md + CLAUDE.md
-    hooks             [OK]  3/3 command paths resolve
+    hooks             [OK]  no hooks block (install.sh --hooks opt-in)
 
   live probes (--live):
     explorer          [OK]   2.1s  — returned 2 paths
