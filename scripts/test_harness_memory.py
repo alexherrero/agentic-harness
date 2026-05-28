@@ -2116,12 +2116,18 @@ class TestPersistInstallState(unittest.TestCase):
                 installed_at="2026-05-27T18:00:00Z",
             )
             self.assertTrue(path.exists())
+            self.assertTrue(str(path).endswith(".agentm-config.json"))
             data = json.loads(path.read_text(encoding="utf-8"))
-            self.assertEqual(data["version"], 1)
+            self.assertEqual(data["schema_version"], 2)
             self.assertEqual(data["mode"], "release")
             self.assertEqual(data["source_clones"], {})
             self.assertEqual(data["installed_at"], "2026-05-27T18:00:00Z")
             self.assertEqual(data["harness_version"], "v4.3.0")
+            # v4.5.1 schema v2 always has vault_path field present (null when unset).
+            self.assertIn("vault_path", data)
+            self.assertIsNone(data["vault_path"])
+            # Legacy `version` field NOT written by schema v2.
+            self.assertNotIn("version", data)
 
     def test_persist_creates_missing_prefix(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -2220,7 +2226,7 @@ class TestInstallStateCLI(unittest.TestCase):
                 "--crickets-path", str(base / "no-crickets"),
             )
             self.assertEqual(persist.returncode, 0, persist.stderr)
-            self.assertTrue(persist.stdout.strip().endswith(".agentm-install-state.json"))
+            self.assertTrue(persist.stdout.strip().endswith(".agentm-config.json"))
 
             read = self._run("read", str(prefix))
             self.assertEqual(read.returncode, 0, read.stderr)

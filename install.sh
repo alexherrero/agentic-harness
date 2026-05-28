@@ -31,6 +31,7 @@ HARNESS_VERSION="$(git -C "$HARNESS_ROOT" describe --tags --abbrev=0 2>/dev/null
 
 INSTALL_HOOKS=0
 UPDATE_MODE=0
+FORCE_VAULT_PROMPT=0   # v4.5.1 task 4: re-fire first-run vault prompt
 TARGET=""
 SCOPE="project"  # V4 #30 task 8: --scope user|project. Default 'project' for
                  # v4.3.0 backward compat; default flips to 'user' in a future
@@ -42,6 +43,7 @@ while [[ $# -gt 0 ]]; do
   case "$arg" in
     --hooks) INSTALL_HOOKS=1; shift ;;
     --update) UPDATE_MODE=1; shift ;;
+    --force-vault-prompt) FORCE_VAULT_PROMPT=1; shift ;;
     --scope)
       if [[ -z "${2:-}" ]]; then
         echo "Error: --scope requires a value (user|project)" >&2
@@ -131,6 +133,134 @@ if _agentm_should_bootstrap_crickets; then
     fi
 fi
 
+# ── first-run vault detection (v4.5.1 task 4) ───────────────────────────────
+# Probe likely Obsidian-vault locations under Google Drive, present numbered
+# candidates to the operator, write the chosen path to .agentm-config.json
+# via agentm_config.py. Triggers on --scope user installs when vault_path is
+# unset OR --force-vault-prompt is passed. CI-skipped via $CI=true env.
+#
+# Out of scope (deferred to a follow-up if the contributor base needs it):
+# Windows + Linux auto-detect. macOS-only for now per locked DC-7.
+
+_agentm_vault_first_run_prompt() {
+    local prefix="$1"
+    # CI skip — runners don't have an interactive operator + don't host
+    # vaults. Emit a one-line notice; don't pollute stderr otherwise.
+    if [[ "${CI:-}" == "true" ]]; then
+        echo "    vault prompt: CI detected; skipping (set via agentm_config.py --vault-path if needed)"
+        return 0
+    fi
+    # Skip if already set + not forced.
+    local existing
+    existing="$(AGENTM_INSTALL_PREFIX="$prefix" python3 "$HARNESS_ROOT/scripts/agentm_config.py" --get vault_path 2>/dev/null || true)"
+    if [[ -n "$existing" && $FORCE_VAULT_PROMPT -eq 0 ]]; then
+        echo "    vault_path: $existing (use --force-vault-prompt to re-select)"
+        return 0
+    fi
+
+    # Only probe on macOS — Windows + Linux defer to manual --vault-path.
+    if [[ "$(uname -s)" != "Darwin" ]]; then
+        echo "    vault prompt: non-Darwin host; skipping auto-detect (set via agentm_config.py --vault-path)"
+        return 0
+    fi
+
+    echo "==> detecting Obsidian vaults under ~/Library/CloudStorage/GoogleDrive-*/"
+    # Bounded probe: max-depth 4, 10s hard timeout, looking for either a
+    # repo_registry marker (V4 #30 plan 1) or an active Obsidian vault dir.
+    local candidates=()
+    local probe_root="$HOME/Library/CloudStorage"
+    if [[ -d "$probe_root" ]]; then
+        # macOS doesn't ship GNU `timeout`. Try gtimeout, then fall back to no-timeout.
+        local _timeout_cmd=""
+        if command -v gtimeout >/dev/null 2>&1; then
+            _timeout_cmd="gtimeout 10s"
+        elif command -v timeout >/dev/null 2>&1; then
+            _timeout_cmd="timeout 10s"
+        fi
+        # Find directories containing _meta/repos.json (vault marker) OR .obsidian/.
+        # Match parent dir of either marker. Bounded by max-depth 5 to allow the
+        # marker dir to be 1 level deeper than the vault root.
+        local found
+        found="$($_timeout_cmd find "$probe_root" -maxdepth 5 \
+            \( -path '*/_meta/repos.json' -o -path '*/.obsidian' \) \
+            -print 2>/dev/null | head -20 || true)"
+        local marker
+        while IFS= read -r marker; do
+            [[ -z "$marker" ]] && continue
+            local vault_root="$(dirname "$marker")"
+            # Step up once more for _meta (marker is /vault/_meta/repos.json → vault is dirname twice)
+            if [[ "$marker" == *"_meta/repos.json" ]]; then
+                vault_root="$(dirname "$vault_root")"
+            fi
+            # De-dup
+            local already=0
+            local existing_c
+            for existing_c in "${candidates[@]+"${candidates[@]}"}"; do
+                [[ "$existing_c" == "$vault_root" ]] && already=1 && break
+            done
+            [[ $already -eq 0 ]] && candidates+=("$vault_root")
+        done <<< "$found"
+    fi
+
+    if [[ ${#candidates[@]} -eq 0 ]]; then
+        echo "    no Obsidian-vault candidates found under Google Drive."
+        echo "    Set later via: python3 $HARNESS_ROOT/scripts/agentm_config.py --vault-path <path>"
+        return 0
+    fi
+
+    echo "    candidates:"
+    local i=1
+    local c
+    for c in "${candidates[@]}"; do
+        echo "      $i) $c"
+        i=$((i + 1))
+    done
+    echo "      m) enter manually"
+    echo "      s) skip (set later via agentm_config.py)"
+    # Read from /dev/tty so this works under `bash install.sh ...` pipes too.
+    local choice=""
+    if [[ -t 0 || -e /dev/tty ]]; then
+        printf "    pick [1-%d / m / s]: " "${#candidates[@]}"
+        read -r choice </dev/tty 2>/dev/null || choice="s"
+    else
+        echo "    (non-interactive; skipping vault prompt)"
+        return 0
+    fi
+
+    local chosen_path=""
+    case "$choice" in
+        s|S|"")
+            echo "    skipped; set later via agentm_config.py --vault-path"
+            return 0
+            ;;
+        m|M)
+            printf "    enter vault path: "
+            read -r chosen_path </dev/tty 2>/dev/null || chosen_path=""
+            ;;
+        *)
+            # Numeric selection
+            if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#candidates[@]} )); then
+                chosen_path="${candidates[$((choice - 1))]}"
+            else
+                echo "    invalid selection; skipping" >&2
+                return 0
+            fi
+            ;;
+    esac
+
+    if [[ -z "$chosen_path" ]]; then
+        echo "    no path entered; skipping"
+        return 0
+    fi
+    # Hand off to agentm_config.py for validation + atomic write.
+    if AGENTM_INSTALL_PREFIX="$prefix" python3 "$HARNESS_ROOT/scripts/agentm_config.py" \
+            --vault-path "$chosen_path" 2>&1; then
+        :  # success message printed by agentm_config.py
+    else
+        echo "    refused (see agentm_config.py message above); leaving vault_path unset" >&2
+    fi
+}
+
 # ── --scope user dispatch (V4 #30 task 8) ───────────────────────────────────
 # When --scope user, install customizations into ~/.claude/ via the symlink
 # (source mode) or copy (release mode) primitive. Skip the per-project
@@ -189,6 +319,10 @@ if [[ "$SCOPE" == "user" ]]; then
     chmod +x "$USER_BIN/agentm-update"
     echo "    launcher: $USER_BIN/agentm-update (add ~/.local/bin to PATH if not already)"
   fi
+
+  # v4.5.1 task 4 — first-run vault detection (idempotent; --force-vault-prompt
+  # re-fires when set; CI + non-Darwin auto-skip with one-line notice).
+  _agentm_vault_first_run_prompt "$USER_INSTALL_PREFIX"
 
   echo "==> done (--scope user)"
   exit 0

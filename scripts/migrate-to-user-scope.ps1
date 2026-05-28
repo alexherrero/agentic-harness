@@ -117,8 +117,13 @@ foreach ($f in @($InstallMigratePy, $InstallStatePy, $RepoRegistryPy)) {
 }
 
 # ── 4-state detection ────────────────────────────────────────────────────
+# v4.5.1: prefer .agentm-config.json; fall back to legacy .agentm-install-state.json.
 $ClaudeDir = Join-Path $Target ".claude"
-$InstallStateJson = Join-Path $ClaudeDir ".agentm-install-state.json"
+$InstallStateJson = Join-Path $ClaudeDir ".agentm-config.json"
+$LegacyStateJson = Join-Path $ClaudeDir ".agentm-install-state.json"
+if (-not (Test-Path -LiteralPath $InstallStateJson) -and (Test-Path -LiteralPath $LegacyStateJson)) {
+    $InstallStateJson = $LegacyStateJson
+}
 $HasClaudeContent = $false
 if (Test-Path -LiteralPath $ClaudeDir -PathType Container) {
     foreach ($sub in @("skills", "hooks", "agents", "commands")) {

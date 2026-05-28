@@ -1,7 +1,8 @@
 # agentm-update.ps1 — global PATH launcher for refreshing the user-scope agentm install.
 #
 # Per V4 #30 plan #22 task 5: Windows twin of templates/bin/agentm-update.
-# Reads <install-prefix>/.agentm-install-state.json + invokes the recorded
+# Reads <install-prefix>/.agentm-config.json (or legacy
+# `.agentm-install-state.json` on pre-v4.5.1 installs) + invokes the recorded
 # installer source with --update --scope user. Pass-through for extra args.
 
 #Requires -Version 7.0
@@ -9,11 +10,17 @@ $ErrorActionPreference = 'Stop'
 
 # Resolve install prefix. Honor AGENTM_INSTALL_PREFIX env if set; else ~/.claude
 $InstallPrefix = if ($env:AGENTM_INSTALL_PREFIX) { $env:AGENTM_INSTALL_PREFIX } else { Join-Path $HOME '.claude' }
-$StateFile = Join-Path $InstallPrefix '.agentm-install-state.json'
+$StateFile = Join-Path $InstallPrefix '.agentm-config.json'
+$LegacyFile = Join-Path $InstallPrefix '.agentm-install-state.json'
 
+# v4.5.1: prefer new filename; fall back to legacy on pre-migration installs.
 if (-not (Test-Path $StateFile)) {
-    Write-Error "agentm-update: no install state at $StateFile`n  Run install.ps1 first to bootstrap the user-scope install."
-    exit 1
+    if (Test-Path $LegacyFile) {
+        $StateFile = $LegacyFile
+    } else {
+        Write-Error "agentm-update: no install state at $StateFile`n  Run install.ps1 first to bootstrap the user-scope install."
+        exit 1
+    }
 }
 
 try {

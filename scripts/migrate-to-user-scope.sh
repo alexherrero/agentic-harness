@@ -145,8 +145,13 @@ done
 
 # ── 4-state detection ─────────────────────────────────────────────────────
 # Determine which of the 4 starting states the target is in.
+# v4.5.1: prefer .agentm-config.json; fall back to legacy .agentm-install-state.json
+# on pre-v4.5.1 installs that haven't been touched by v4.5.1 install_state.py yet.
 CLAUDE_DIR="$TARGET/.claude"
-INSTALL_STATE_JSON="$CLAUDE_DIR/.agentm-install-state.json"
+INSTALL_STATE_JSON="$CLAUDE_DIR/.agentm-config.json"
+if [[ ! -f "$INSTALL_STATE_JSON" && -f "$CLAUDE_DIR/.agentm-install-state.json" ]]; then
+    INSTALL_STATE_JSON="$CLAUDE_DIR/.agentm-install-state.json"
+fi
 HAS_CLAUDE_CONTENT=0
 if [[ -d "$CLAUDE_DIR" ]]; then
     for sub in skills hooks agents commands; do

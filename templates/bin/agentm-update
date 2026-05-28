@@ -10,8 +10,9 @@
 # source for completeness (e.g. when a new skill is added to the clone but the
 # installer's manifest also changed).
 #
-# Reads <install-prefix>/.agentm-install-state.json to find the installer
-# source path recorded at install time, then invokes:
+# Reads <install-prefix>/.agentm-config.json (or the legacy
+# `.agentm-install-state.json` if a pre-v4.5.1 install hasn't migrated yet)
+# to find the installer source path recorded at install time, then invokes:
 #     bash <installer_source> --update --scope user
 #
 # Falls back to a documented error if state file missing or installer source
@@ -21,12 +22,18 @@ set -euo pipefail
 
 # Resolve install prefix. Honor AGENTM_INSTALL_PREFIX env if set; else ~/.claude
 INSTALL_PREFIX="${AGENTM_INSTALL_PREFIX:-$HOME/.claude}"
-STATE_FILE="$INSTALL_PREFIX/.agentm-install-state.json"
+STATE_FILE="$INSTALL_PREFIX/.agentm-config.json"
+LEGACY_FILE="$INSTALL_PREFIX/.agentm-install-state.json"
 
+# v4.5.1: prefer new filename; fall back to legacy on pre-migration installs.
 if [[ ! -f "$STATE_FILE" ]]; then
-    echo "agentm-update: no install state at $STATE_FILE" >&2
-    echo "  Run install.sh first to bootstrap the user-scope install." >&2
-    exit 1
+    if [[ -f "$LEGACY_FILE" ]]; then
+        STATE_FILE="$LEGACY_FILE"
+    else
+        echo "agentm-update: no install state at $STATE_FILE" >&2
+        echo "  Run install.sh first to bootstrap the user-scope install." >&2
+        exit 1
+    fi
 fi
 
 # Parse the recorded installer source via python (stdlib; portable).

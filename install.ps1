@@ -26,6 +26,7 @@
 param(
     [switch]$Hooks,
     [switch]$Update,
+    [switch]$ForceVaultPrompt,   # v4.5.1 task 4: re-fire first-run vault prompt
     [ValidateSet('user', 'project')]
     [string]$Scope = 'project',
     [Parameter(Position = 0)]
@@ -146,6 +147,32 @@ if ($Scope -eq 'user') {
     if (Test-Path $launcherSrc) {
         Copy-Item -LiteralPath $launcherSrc -Destination (Join-Path $userBin 'agentm-update.ps1') -Force
         Write-Host "    launcher: $userBin\agentm-update.ps1 (add ~/.local/bin to PATH if not already)"
+    }
+
+    # ── v4.5.1 task 4: first-run vault detection ─────────────────────────────
+    # CI runners + non-Darwin hosts auto-skip (Windows operators currently use
+    # manual `agentm_config.py --vault-path <path>`; macOS auto-detect on
+    # PowerShell is deferred — no operator running PowerShell on macOS today).
+    if ($env:CI -eq 'true') {
+        Write-Host "    vault prompt: CI detected; skipping (set via agentm_config.py --vault-path if needed)"
+    } else {
+        $configCli = Join-Path $HarnessRoot 'scripts/agentm_config.py'
+        $env:AGENTM_INSTALL_PREFIX = $UserInstallPrefix
+        $existing = ''
+        try {
+            $existing = (& $pythonCmd.Source $configCli '--get' 'vault_path' 2>$null | Out-String).Trim()
+        } catch { }
+        $env:AGENTM_INSTALL_PREFIX = $null
+        if ($existing -and -not $ForceVaultPrompt) {
+            Write-Host "    vault_path: $existing (use -ForceVaultPrompt to re-select)"
+        } else {
+            # Cross-platform auto-detect is out of scope for v4.5.1 (locked DC-7,
+            # macOS-only). pwsh-on-macOS is rare; pwsh-on-Windows operators set
+            # the path manually until a follow-up adds Windows-side detection.
+            Write-Host "    vault prompt: pwsh host; auto-detect not yet implemented"
+            Write-Host "    set the vault path manually via:"
+            Write-Host "      python3 $configCli --vault-path <path-to-your-Obsidian-vault>"
+        }
     }
 
     Write-Host '==> done (-Scope user)'

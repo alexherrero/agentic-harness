@@ -21,18 +21,30 @@ The probe is **silent** — emits nothing to stdout except the JSON persist
 target. Operator sees no prompt; the install dispatches based on the
 detected mode without ceremony (per FOLLOWUPS locked semantics 2026-05-27).
 
-Schema (v1) — written to `<install-prefix>/.agentm-install-state.json`:
+Schema (v2; v4.5.1+) — written to `<install-prefix>/.agentm-config.json`:
 
     {
-      "version": 1,
+      "schema_version": 2,
       "mode": "source" | "release",
       "source_clones": {
         "agentm":  "/srv/projects/agentm"  // present iff detected
         "crickets": "/srv/projects/crickets"
       },
       "installed_at": "2026-05-27T18:00:00Z",
-      "harness_version": "v4.2.0"                    // semver string
+      "harness_version": "v4.5.1",                   // semver string
+      "vault_path": "/path/to/Obsidian/MyVault"      // null when unset; the
+                                                      // on-device source of truth
+                                                      // for the MemoryVault root
+                                                      // (env MEMORY_VAULT_PATH wins
+                                                      // as override per locked DC-2)
     }
+
+Pre-v4.5.1 installs may have a legacy `.agentm-install-state.json` file with
+schema v1 (`"version": 1`, no `vault_path` field). `persist_install_state()`
+auto-migrates: reads the legacy file (if new file absent), preserves any
+`vault_path` field found, removes the legacy file, and writes schema v2 under
+the new name. Matches the read-side migration in
+`scripts/install_state_sync.py::_read_state()`.
 
 Stdlib-only (ADR 0001). Cross-platform via pathlib + os.path.expanduser.
 
@@ -48,8 +60,15 @@ import time
 from pathlib import Path
 from typing import Optional
 
-_SCHEMA_VERSION = 1
-_STATE_FILENAME = ".agentm-install-state.json"
+# v4.5.1 task 4+5 fold: bumped to schema v2 + renamed config file.
+# `_LEGACY_FILENAME` is read at persist-time to migrate pre-v4.5.1 installs:
+# if the legacy file exists at the install prefix and the new file doesn't,
+# we read the legacy contents + persist them under the new name + remove the
+# legacy. Atomic via `os.replace()`. Matches the read-side migration logic in
+# `scripts/install_state_sync.py::_read_state()` (task 1).
+_SCHEMA_VERSION = 2
+_STATE_FILENAME = ".agentm-config.json"
+_LEGACY_FILENAME = ".agentm-install-state.json"
 
 # Default canonical clone paths — operator's documented dev-setup convention.
 # Overridable via CLI flags for tests + non-default setups.
@@ -165,13 +184,47 @@ def persist_install_state(
     prefix.mkdir(parents=True, exist_ok=True)
     if installed_at is None:
         installed_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    # v4.5.1: preserve pre-existing vault_path field across re-install + handle
+    # the legacy filename. Resolution: read new file → fall back to legacy
+    # filename if present (and remove legacy after harvest; matches the
+    # read-side migration in scripts/install_state_sync.py).
+    new_path = prefix / _STATE_FILENAME
+    legacy_path = prefix / _LEGACY_FILENAME
+    preserved: dict = {}
+    source_for_preserve: Optional[Path] = None
+    if new_path.is_file():
+        source_for_preserve = new_path
+    elif legacy_path.is_file():
+        source_for_preserve = legacy_path
+    if source_for_preserve is not None:
+        try:
+            prior = json.loads(source_for_preserve.read_text(encoding="utf-8"))
+            if isinstance(prior, dict) and "vault_path" in prior:
+                preserved["vault_path"] = prior["vault_path"]
+        except (json.JSONDecodeError, OSError):
+            pass
+    # Drop the legacy file if it exists — the persist below writes the new
+    # path; leaving the legacy around would create a split-brain state until
+    # the next SessionStart hook fires.
+    if legacy_path.is_file() and legacy_path != new_path:
+        try:
+            legacy_path.unlink()
+        except OSError:
+            pass
+
     data: dict = {
-        "version": _SCHEMA_VERSION,
+        "schema_version": _SCHEMA_VERSION,
         "mode": mode,
         "source_clones": source_clones,
         "installed_at": installed_at,
         "harness_version": harness_version,
     }
+    if "vault_path" in preserved:
+        data["vault_path"] = preserved["vault_path"]
+    else:
+        # Field is always present in schema v2; null when unset.
+        data["vault_path"] = None
     if installer_source is not None:
         data["installer_source"] = installer_source
     if installed_shas is not None:
@@ -188,12 +241,22 @@ def persist_install_state(
 def read_install_state(install_prefix: Path | str) -> Optional[dict]:
     """Read the install-state JSON; return None if absent or malformed.
 
+    Resolution: prefer `.agentm-config.json` (v4.5.1+ canonical); fall back
+    to legacy `.agentm-install-state.json` if only the legacy file exists.
+    This is a READ — does not migrate the file on disk. Migration happens
+    on the next `persist_install_state()` call OR via the SessionStart hook
+    in scripts/install_state_sync.py.
+
     None semantics: caller treats no-state as "first install / pre-#30
     install"; the next persist will create the file.
     """
-    path = state_path(install_prefix)
+    prefix = Path(install_prefix)
+    path = prefix / _STATE_FILENAME
     if not path.is_file():
-        return None
+        legacy = prefix / _LEGACY_FILENAME
+        if not legacy.is_file():
+            return None
+        path = legacy
     try:
         with path.open(encoding="utf-8") as f:
             data = json.load(f)
