@@ -35,7 +35,13 @@ jobs:
       - name: Run check-no-pii.sh
         shell: bash
         run: bash scripts/check-no-pii.sh --all
-      - name: Unit tests — vault_project.py
-        run: python scripts/test_vault_project.py
-      - name: Unit tests — harness_memory.py
-        run: python scripts/test_harness_memory.py
+      - name: Unit tests — auto-discover every scripts/test_*.py
+        # v4.5.1 task 1: use unittest discover so new test files are picked
+        # up without a workflow edit. Closes pre-v4.5.1 CI gap where
+        # test_install_migrate.py + test_install_state_sync.py were invisible.
+        # PowerShell on windows-latest: cd is invocation-scoped via parens.
+        shell: pwsh
+        run: |
+          Push-Location scripts
+          python -m unittest discover -p 'test_*.py'
+          Pop-Location
