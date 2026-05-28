@@ -54,7 +54,7 @@ from typing import Optional
 # Symlink mapping (per DC-7 + DC-8)
 # -----------------------------------------------------------------------------
 
-def _symlink_targets_for_clone(
+def symlink_targets_for_clone(
     clone_slug: str,
     clone_root: Path,
 ) -> list[tuple[Path, str, bool]]:
@@ -67,6 +67,17 @@ def _symlink_targets_for_clone(
       - is_dir:                True for directory symlinks; False for files
 
     Returns [] for unknown slugs (defensive).
+
+    **Single source of truth** for the install-prefix ↔ source-clone mapping
+    (V4 #30 plan 3 of 3 task 3). Consumed by:
+      - install_symlinks.symlink_customizations  — forward direction (create
+        symlinks under <install-prefix>/ pointing at source-clone paths).
+      - install_migrate.inverse_mapping_for_clones — inverse direction (given
+        a file at <target>/.claude/<rel>, find the source-clone canonical
+        path it should map to for SHA256 compare).
+
+    Inversion happens at call time in install_migrate; no separate inverse
+    table is maintained. This guarantees the two directions can never drift.
     """
     out: list[tuple[Path, str, bool]] = []
 
@@ -243,7 +254,7 @@ def symlink_customizations(
         clone_root = Path(clone_root_str)
         if not clone_root.is_dir():
             continue
-        for source_path, rel_install, is_dir in _symlink_targets_for_clone(slug, clone_root):
+        for source_path, rel_install, is_dir in symlink_targets_for_clone(slug, clone_root):
             link = prefix / rel_install
             state = _classify_existing(link, source_path)
 
