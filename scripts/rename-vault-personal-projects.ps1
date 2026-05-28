@@ -23,8 +23,19 @@ if ($Help) {
 }
 
 # ── vault resolution ──────────────────────────────────────────────────────
+# v4.5.1: fall back to vault_path in .agentm-config.json when env+CLI empty.
 if (-not $VaultPath) {
-    Write-Error 'vault path not provided. Set MEMORY_VAULT_PATH or pass -VaultPath.'
+    try {
+        $VaultPath = (& python3 (Join-Path $PSScriptRoot 'agentm_config.py') '--get' 'vault_path' 2>$null | Out-String).Trim()
+    } catch { $VaultPath = '' }
+}
+if (-not $VaultPath) {
+    Write-Error @"
+vault path not configured.
+  Resolution: `$MEMORY_VAULT_PATH env → vault_path in ~/.claude/.agentm-config.json → -VaultPath CLI.
+  Set via: python3 (Join-Path $PSScriptRoot 'agentm_config.py') --vault-path <path>
+       or: pwsh -NoProfile -File install.ps1 -Scope user -ForceVaultPrompt
+"@
     exit 1
 }
 if (-not (Test-Path -LiteralPath $VaultPath -PathType Container)) {

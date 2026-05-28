@@ -35,6 +35,23 @@ if str(_HERE) not in sys.path:
 import harness_memory as hm  # noqa: E402
 
 
+# v4.5.1: sandbox AGENTM_INSTALL_PREFIX module-wide so vault_path()'s
+# new config-file fallback doesn't read the operator's real
+# `~/.claude/.agentm-config.json` during tests. Each test that wants a
+# specific config writes one to this sandbox under setUp/tearDown.
+_TEST_INSTALL_PREFIX = tempfile.mkdtemp(prefix="agentm-test-install-prefix-")
+
+
+def setUpModule() -> None:  # noqa: N802 — unittest convention
+    os.environ["AGENTM_INSTALL_PREFIX"] = _TEST_INSTALL_PREFIX
+
+
+def tearDownModule() -> None:  # noqa: N802
+    os.environ.pop("AGENTM_INSTALL_PREFIX", None)
+    import shutil
+    shutil.rmtree(_TEST_INSTALL_PREFIX, ignore_errors=True)
+
+
 # -----------------------------------------------------------------------------
 # Fixture helpers
 # -----------------------------------------------------------------------------

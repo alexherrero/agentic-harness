@@ -73,8 +73,13 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# v4.5.1: resolution order: --vault-path CLI → $MEMORY_VAULT_PATH env (set as
+# $VAULT_PATH default above) → vault_path in .agentm-config.json.
+if [[ -z "$VAULT_PATH" ]]; then
+    VAULT_PATH="$(python3 "$(dirname "$0")/agentm_config.py" --get vault_path 2>/dev/null || true)"
+fi
 if [[ -z "$VAULT_PATH" || ! -d "$VAULT_PATH" ]]; then
-    echo '{"skipped": true, "reason": "MEMORY_VAULT_PATH unset or vault directory missing"}'
+    echo '{"skipped": true, "reason": "MEMORY_VAULT_PATH unset AND no vault_path in .agentm-config.json (or resolved directory missing). Run agentm_config.py --vault-path <path> to set."}'
     exit 1
 fi
 

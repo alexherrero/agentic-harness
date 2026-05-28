@@ -43,8 +43,16 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ── vault resolution ──────────────────────────────────────────────────────
+# v4.5.1: resolution order: --vault-path CLI → $MEMORY_VAULT_PATH env (set
+# above from $VAULT_PATH default) → vault_path in .agentm-config.json.
 if [[ -z "$VAULT_PATH" ]]; then
-    echo "Error: vault path not provided. Set MEMORY_VAULT_PATH or pass --vault-path." >&2
+    VAULT_PATH="$(python3 "$(dirname "$0")/agentm_config.py" --get vault_path 2>/dev/null || true)"
+fi
+if [[ -z "$VAULT_PATH" ]]; then
+    echo "Error: vault path not configured." >&2
+    echo "  Resolution: \$MEMORY_VAULT_PATH env → vault_path in ~/.claude/.agentm-config.json → --vault-path CLI." >&2
+    echo "  Set via: python3 \"\$(dirname \"\$0\")/agentm_config.py\" --vault-path <path>" >&2
+    echo "       or: bash install.sh --scope user --force-vault-prompt" >&2
     exit 1
 fi
 if [[ ! -d "$VAULT_PATH" ]]; then

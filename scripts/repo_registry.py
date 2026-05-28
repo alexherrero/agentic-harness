@@ -33,9 +33,12 @@ Three CLI subcommands:
     unregister <slug>   — remove a repo (idempotent)
 
 Graceful-skip:
-- If `MEMORY_VAULT_PATH` env unset or directory missing → CLI exits 1 with
-  `{"skipped": true, "reason": "..."}` JSON; primitives return None on read,
-  raise on write.
+- If `$MEMORY_VAULT_PATH` env unset AND `vault_path` absent from
+  `<install-prefix>/.agentm-config.json` (or any resolved path's directory
+  missing) → CLI exits 1 with `{"skipped": true, "reason": "..."}` JSON;
+  primitives return None on read, raise on write. Set the path via
+  `python3 scripts/agentm_config.py --vault-path <path>` or re-run
+  `install.sh --scope user --force-vault-prompt`.
 
 Stdlib-only (ADR 0001). Cross-platform via pathlib.
 
@@ -251,7 +254,12 @@ def _print_skip_and_exit() -> int:
     """Emit the graceful-skip JSON envelope on stdout, exit 1."""
     sys.stdout.write(json.dumps({
         "skipped": True,
-        "reason": "MEMORY_VAULT_PATH unset or vault directory missing",
+        "reason": (
+            "MEMORY_VAULT_PATH unset AND no vault_path in .agentm-config.json "
+            "(or resolved directory missing). Run "
+            "`python3 scripts/agentm_config.py --vault-path <path>` to set, "
+            "or re-run `install.sh --scope user --force-vault-prompt`."
+        ),
     }) + "\n")
     return 1
 

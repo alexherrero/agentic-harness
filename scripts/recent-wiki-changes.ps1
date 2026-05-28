@@ -23,8 +23,14 @@ param(
 $ErrorActionPreference = 'Stop'
 
 if (-not $VaultPath) { $VaultPath = $env:MEMORY_VAULT_PATH }
+# v4.5.1: fall back to vault_path in .agentm-config.json when env+CLI empty.
+if (-not $VaultPath) {
+    try {
+        $VaultPath = (& python3 (Join-Path $PSScriptRoot 'agentm_config.py') '--get' 'vault_path' 2>$null | Out-String).Trim()
+    } catch { $VaultPath = '' }
+}
 if (-not $VaultPath -or -not (Test-Path -LiteralPath $VaultPath -PathType Container)) {
-    Write-Output '{"skipped": true, "reason": "MEMORY_VAULT_PATH unset or vault directory missing"}'
+    Write-Output '{"skipped": true, "reason": "MEMORY_VAULT_PATH unset AND no vault_path in .agentm-config.json (or resolved directory missing). Run agentm_config.py --vault-path <path> to set."}'
     exit 1
 }
 

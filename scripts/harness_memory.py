@@ -4,7 +4,8 @@
 Wires MemoryVault read + write into each harness phase command
 (`/setup`, `/plan`, `/work`, `/review`, `/release`, `/bugfix`). Phase specs
 invoke this CLI unconditionally; the dispatcher graceful-skips when
-MemoryVault is not installed (`MEMORY_VAULT_PATH` env unset or directory
+MemoryVault is not installed (`$MEMORY_VAULT_PATH` env unset AND no
+`vault_path` in `<install-prefix>/.agentm-config.json` OR directory
 missing), so the harness runs the same on systems with or without the
 sibling `crickets` install.
 
