@@ -126,6 +126,20 @@ Opt-in, per-project. The convention does not force a migration — existing proj
 
 [`templates/wiki/`](https://github.com/alexherrero/agentm/tree/main/templates/wiki) is reshaped to the new four-dir layout with starter files: `tutorials/01-First-Run.md`, `how-to/README.md`, `reference/README.md`, `explanation/README.md`, `explanation/decisions/README.md`. The scaffold ships empty-body starters with the right mode block so a `/setup` run immediately produces lint-passing pages.
 
+## Amendment 2026-05-27
+
+**Wiki I/O contract — V4 #30 plan 2 of 3.** Codifies three wiki I/O conventions on top of this ADR. These extend the original spec; do not contradict it.
+
+1. **Preview-before-write is mandatory for ALL writes** — per-repo or cross-repo. The agent (documenter sub-agent + `wiki-author` skill dispatcher) emits a unified diff of every proposed change + waits for explicit operator approval before executing. Per-write gate (not per-batch).
+
+2. **Per-repo `.diataxis-conventions.md` override** is honored when present in the target repo's root. Operator-locked deviations from this ADR's defaults (e.g. a per-repo soft-ceiling override, a project-specific Tutorial naming convention, repo-specific ADR numbering) take precedence over the operator-global conventions in `_always-load/diataxis-*.md`. The convention from the `diataxis-author` skill (V4 #28 / plan #13) extends to the wiki I/O contract: convention drift between operator's Diátaxis wikis is mitigated per-repo, not globally.
+
+3. **Cross-repo write target resolved via `repo_registry.list_repos()`** (vault-backed registry shipped V4 #30 plan 1; lives at `<vault>/_meta/repos.json`). The documenter sub-agent + `wiki-author` skill (added V4 #30 plan 2) accept cross-repo write targets only when the named slug appears in the registry. Unregistered targets refuse with an actionable error: `python3 scripts/repo_registry.py register <slug> --root <path>`.
+
+The `wiki-author` skill (operator-facing dispatcher; added V4 #30 plan 2) wraps cwd-vs-cross-repo resolution + dispatches to the documenter for the actual write. Documenter's hard-boundary write scope (extended in the same plan) explicitly covers cross-repo wiki/** under these three constraints.
+
+Cross-references: [`documenter` sub-agent spec](https://github.com/alexherrero/agentm/blob/main/harness/agents/documenter.md) (write-scope section) + [`wiki-author` skill](https://github.com/alexherrero/agentm/blob/main/harness/skills/wiki-author/SKILL.md) (ergonomics + trigger phrases) + V4 #30 plan 2 PLAN narrative.
+
 ## Consequences
 
 **Positive**

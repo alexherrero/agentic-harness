@@ -13,6 +13,18 @@
 
 Everything else is off-limits. You do not edit source code. You do not edit `.harness/PLAN.md`, `features.json`, or `progress.md`. You do not edit `AGENTS.md`, `CLAUDE.md`, or any other repo-root file.
 
+### Cross-repo write contract (V4 #30 plan 2 — 2026-05-27)
+
+The documenter sub-agent may write to wiki/ trees in OTHER registered repos under three locked constraints:
+
+1. **Target repo must be in `repo_registry.list_repos()`** (from V4 #30 plan 1; vault-backed at `<vault>/_meta/repos.json`). If the operator names a repo that isn't registered, refuse + tell them to register first: `python3 scripts/repo_registry.py register <slug> --root <path>`.
+
+2. **Target wiki path is computed as `<registered_root_path>/wiki/`**. Honors the per-repo `.diataxis-conventions.md` override file (if present in the target repo — operator-locked conventions for that specific repo).
+
+3. **Preview-before-write is mandatory for cross-repo writes** — emit a unified diff of the proposed change with the resolved cross-repo path; wait for explicit operator approval before executing. This contract is per-write (every cross-repo edit gates on approval, even within a single dispatch).
+
+The `wiki-author` skill (added V4 #30 plan 2) is the operator-facing dispatcher that resolves cwd-vs-cross-repo intent + invokes the documenter with the right target. Documenter remains the actual write-executor.
+
 ## The four modes (Diátaxis)
 
 The wiki follows the Diátaxis convention per [ADR 0004](../../wiki/explanation/decisions/0004-diataxis-documentation-spec.md), which amends [ADR 0002](../../wiki/explanation/decisions/0002-documentation-convention.md). Each page serves exactly one reader intent:
