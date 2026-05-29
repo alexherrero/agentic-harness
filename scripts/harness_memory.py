@@ -42,7 +42,8 @@ Default recall budgets (tokens, approximate by chars/4):
     review     = 4000
     release    = 6000
     bugfix     = 6000
-    documenter = 4000   (V4 #35; HARNESS_RECALL_BUDGET_DOCUMENTER override)
+    documenter = 10000  (V4 #35; raised from 4k after task-5 dogfood +
+                         project-first ordering; HARNESS_RECALL_BUDGET_DOCUMENTER override)
 
 Per-phase recall query templates live in `_RECALL_QUERIES`. Per-phase
 permanence rules live in `_PERMANENT_ONLY_DIRS`.
@@ -90,10 +91,14 @@ _DEFAULT_BUDGETS = {
     "review": 4000,
     "release": 6000,
     "bugfix": 6000,
-    # V4 #35: documenter dispatches are short; a big bundle crowds out the
-    # actual doc-edit reasoning. Cap at 4k, overrideable via
-    # HARNESS_RECALL_BUDGET_DOCUMENTER per locked design call #3.
-    "documenter": 4000,
+    # V4 #35: documenter-time context budget. Originally 4k (locked DC-3), but
+    # the task-5 dogfood showed 4k truncated away the project decisions + the
+    # doc-relevant conventions (31 always-load entries total ~27k tokens). Raised
+    # to 10k (DC-3 revised 2026-05-28) + the documenter recall now emits project
+    # context FIRST (see phase_recall `project_first`), so the project decisions
+    # always survive the budget and the conventions fill the remainder.
+    # Overrideable via HARNESS_RECALL_BUDGET_DOCUMENTER.
+    "documenter": 10000,
 }
 
 # Phase-specific subdirectory mappings under `projects/<slug>/` (or legacy
@@ -784,10 +789,18 @@ def phase_recall(
     *,
     budget: Optional[int] = None,
     permanent_only: bool = False,
+    project_first: bool = False,
 ) -> str:
     """Return a markdown summary of recall context for `phase` + `project`.
 
     Empty string if vault unavailable (graceful-skip).
+
+    `project_first` (V4 #35): when True, per-project entries (decisions, _index,
+    …) are emitted BEFORE the operator-global always-load conventions, so they
+    survive budget truncation (which drops from the end). The documenter phase
+    sets this — its raison d'être is the project's settled decisions, which must
+    not be the first thing cut when the convention set is large. Other phases
+    keep always-load-first (their global conventions are the priority).
     """
     if phase not in _VALID_PHASES:
         raise ValueError(f"unknown phase: {phase!r}")
@@ -795,12 +808,17 @@ def phase_recall(
     if v is None:
         return ""
 
+    always = _load_always_load(v, permanent_only)
+    project_parts = (
+        _load_project_entries(v, project, phase, permanent_only) if project else []
+    )
     parts: list[str] = []
-    # Always-load conventions first (highest signal, lowest noise).
-    parts.extend(_load_always_load(v, permanent_only))
-    # Per-project entries for the phase, if a project slug is known.
-    if project:
-        parts.extend(_load_project_entries(v, project, phase, permanent_only))
+    if project_first:
+        parts.extend(project_parts)
+        parts.extend(always)
+    else:
+        parts.extend(always)
+        parts.extend(project_parts)
 
     if not parts:
         return ""
@@ -922,7 +940,9 @@ def documenter_context(slug: str, *, budget: Optional[int] = None, fmt: str = "t
     if fmt == "json":
         output = json.dumps(bundle, indent=2, ensure_ascii=False) + "\n"
     else:
-        output = phase_recall("documenter", slug, budget=budget)
+        # project_first=True (V4 #35 task-5 dogfood fix): emit project decisions
+        # before always-load so they survive the budget when conventions are many.
+        output = phase_recall("documenter", slug, budget=budget, project_first=True)
 
     return output, (0 if bundle["registered"] else 2)
 

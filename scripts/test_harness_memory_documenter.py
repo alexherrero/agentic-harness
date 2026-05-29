@@ -134,8 +134,10 @@ class TestDocumenterPhaseWiring(unittest.TestCase):
     def test_documenter_is_a_valid_recall_phase(self) -> None:
         self.assertIn("documenter", hm._VALID_PHASES)
 
-    def test_default_budget_is_4k(self) -> None:
-        self.assertEqual(hm._DEFAULT_BUDGETS["documenter"], 4000)
+    def test_default_budget_is_10k(self) -> None:
+        # Raised from 4k after the V4 #35 task-5 dogfood (4k truncated away the
+        # project decisions). Overrideable via HARNESS_RECALL_BUDGET_DOCUMENTER.
+        self.assertEqual(hm._DEFAULT_BUDGETS["documenter"], 10000)
 
     def test_budget_env_override(self) -> None:
         # Locked DC-3: HARNESS_RECALL_BUDGET_DOCUMENTER overrides the 4k default.
@@ -145,6 +147,43 @@ class TestDocumenterPhaseWiring(unittest.TestCase):
     def test_budget_arg_beats_env(self) -> None:
         with _ClearEnv(set_vars={"HARNESS_RECALL_BUDGET_DOCUMENTER": "1500"}):
             self.assertEqual(hm.phase_budget("documenter", 9000), 9000)
+
+    def test_documenter_text_is_project_first(self) -> None:
+        # V4 #35 task-5 fix: the documenter text bundle emits project context
+        # (decisions/_index) BEFORE always-load conventions, so the project's
+        # settled decisions survive budget truncation instead of being cut first.
+        with tempfile.TemporaryDirectory() as tmp:
+            vault = _make_documenter_vault(Path(tmp), project="agentm")
+            with _ClearEnv(set_vars={"MEMORY_VAULT_PATH": str(vault)}):
+                out, rc = hm.documenter_context("agentm", fmt="text")
+        self.assertEqual(rc, 0)
+        first_heading = next(l for l in out.splitlines() if l.startswith("### "))
+        self.assertTrue(
+            first_heading.startswith("### agentm/"),
+            f"expected a project entry first, got: {first_heading!r}",
+        )
+        # Explicit ordering: project decision precedes any always-load entry.
+        self.assertLess(out.find("### agentm/"), out.find("### always-load:"))
+
+    def test_project_first_keeps_project_when_budget_truncates(self) -> None:
+        # With project_first + a budget too small for everything, what survives
+        # is project context (always-load is dropped from the tail first).
+        with tempfile.TemporaryDirectory() as tmp:
+            vault = _make_documenter_vault(Path(tmp), project="agentm")
+            with _ClearEnv(set_vars={"MEMORY_VAULT_PATH": str(vault)}):
+                full = hm.phase_recall("documenter", "agentm", project_first=True)
+                tight = hm.phase_recall("documenter", "agentm", budget=40, project_first=True)
+        # Full bundle has both; tight bundle keeps a project entry up front.
+        self.assertIn("### always-load:", full)
+        self.assertIn("### agentm/", tight)
+        # Sanity: project_first=False would have led with always-load instead.
+        with tempfile.TemporaryDirectory() as tmp:
+            vault = _make_documenter_vault(Path(tmp), project="agentm")
+            with _ClearEnv(set_vars={"MEMORY_VAULT_PATH": str(vault)}):
+                default_order = hm.phase_recall("documenter", "agentm")
+        self.assertLess(
+            default_order.find("### always-load:"), default_order.find("### agentm/")
+        )
 
     def test_phase_recall_documenter_does_not_raise(self) -> None:
         # Pre-V4 #35, phase_recall("documenter", ...) raised ValueError.
