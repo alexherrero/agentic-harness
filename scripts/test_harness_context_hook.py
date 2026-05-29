@@ -4,11 +4,11 @@
 Drives the bash hook as a subprocess with a synthetic SessionStart event JSON on
 stdin + a fixture vault, asserting the inject/skip/graceful-skip behaviors.
 
-The hook resolves the active project's vault PLAN.md/progress.md via the real
-`harness_memory.py vault-state-path` (found through ~/.claude/.agentm-config.json
-or the ~/Antigravity/agentm fallback) — so we point MEMORY_VAULT_PATH at a
-fixture vault and pre-resolve the expected paths via the same resolver, keeping
-the test self-consistent regardless of how the slug is derived.
+Hermetic: each test points the hook at a fake `HOME` whose
+`.claude/.agentm-config.json` resolves `harness_memory.py` to THIS repo (CI has
+no `~/.claude/.agentm-config.json` nor a `~/Antigravity/agentm` clone, so without
+this the hook would correctly skip and the inject case couldn't be exercised).
+The fixture vault is selected via MEMORY_VAULT_PATH (env wins in the resolver).
 
 Run: python3 scripts/test_harness_context_hook.py
 Skipped on non-POSIX (bash hook).
@@ -36,21 +36,33 @@ class TestHarnessContextHook(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
         self.vault = self.root / "vault"
-        (self.vault / "projects").mkdir(parents=True)  # mark as the projects layout
+        (self.vault / "projects").mkdir(parents=True)  # mark the projects layout
         self.proj = self.root / "myfixtureproj"
         self.proj.mkdir()
-        # Give the fixture project a resolvable slug (tier-1: .harness/project.json
-        # vault_project field) so vault-state-path resolves a concrete path.
+        # Tier-1 slug for the fixture project.
         (self.proj / ".harness").mkdir()
         (self.proj / ".harness" / "project.json").write_text(
             json.dumps({"vault_project": "myfixtureproj"}), encoding="utf-8",
+        )
+        # Fake HOME so the hook resolves harness_memory.py from THIS repo
+        # (config.source_clones.agentm = repo root) regardless of machine layout.
+        self.fake_home = self.root / "home"
+        (self.fake_home / ".claude").mkdir(parents=True)
+        (self.fake_home / ".claude" / ".agentm-config.json").write_text(
+            json.dumps({"schema_version": 2, "source_clones": {"agentm": str(_REPO)}}),
+            encoding="utf-8",
         )
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
+    def _env(self, **over) -> dict:
+        env = {**os.environ, "HOME": str(self.fake_home), "MEMORY_VAULT_PATH": str(self.vault)}
+        env.pop("AGENTM_INSTALL_PREFIX", None)  # MEMORY_VAULT_PATH wins anyway
+        env.update(over)
+        return env
+
     def _resolve(self, name: str, env: dict) -> str:
-        """Pre-resolve a state path via the same resolver the hook uses."""
         r = subprocess.run(
             [sys.executable, str(_RESOLVER), "vault-state-path", name],
             cwd=str(self.proj), env=env, capture_output=True, text=True,
@@ -64,11 +76,10 @@ class TestHarnessContextHook(unittest.TestCase):
         )
 
     def test_injects_block_when_both_state_files_exist(self) -> None:
-        env = {**os.environ, "MEMORY_VAULT_PATH": str(self.vault)}
+        env = self._env()
         plan = self._resolve("PLAN.md", env)
         prog = self._resolve("progress.md", env)
         self.assertTrue(plan and prog, f"resolver returned empty: plan={plan!r} prog={prog!r}")
-        # Create both state files at the resolved paths.
         for p in (plan, prog):
             Path(p).parent.mkdir(parents=True, exist_ok=True)
             Path(p).write_text("# fixture\n", encoding="utf-8")
@@ -82,16 +93,15 @@ class TestHarnessContextHook(unittest.TestCase):
         self.assertIn("injected vault paths", r.stderr)
 
     def test_skips_when_state_files_absent(self) -> None:
-        # Vault reachable but no PLAN.md/progress.md for this cwd's slug → skip.
-        env = {**os.environ, "MEMORY_VAULT_PATH": str(self.vault)}
+        # Resolver found (fake HOME config) but no PLAN.md/progress.md on disk → skip.
+        env = self._env()
         r = self._run_hook(str(self.proj), env)
         self.assertEqual(r.returncode, 0)
         self.assertNotIn("[agentm] Project state", r.stdout)
         self.assertIn("skipped", r.stderr)
 
     def test_skips_when_event_cwd_missing(self) -> None:
-        env = {**os.environ, "MEMORY_VAULT_PATH": str(self.vault)}
-        r = self._run_hook(str(self.root / "does-not-exist"), env)
+        r = self._run_hook(str(self.root / "does-not-exist"), self._env())
         self.assertEqual(r.returncode, 0)
         self.assertNotIn("[agentm] Project state", r.stdout)
         self.assertIn("skipped", r.stderr)
@@ -99,10 +109,9 @@ class TestHarnessContextHook(unittest.TestCase):
     def test_graceful_skip_when_resolver_unavailable(self) -> None:
         # Fake HOME with no .agentm-config.json + no ~/Antigravity/agentm fallback
         # → resolver cannot be located → graceful skip, never blocks.
-        fake_home = self.root / "fakehome"
-        fake_home.mkdir()
-        env = {**os.environ, "HOME": str(fake_home), "MEMORY_VAULT_PATH": str(self.vault)}
-        env.pop("AGENTM_INSTALL_PREFIX", None)
+        bare_home = self.root / "barehome"
+        bare_home.mkdir()
+        env = self._env(HOME=str(bare_home))
         r = self._run_hook(str(self.proj), env)
         self.assertEqual(r.returncode, 0)
         self.assertEqual(r.stdout.strip(), "")

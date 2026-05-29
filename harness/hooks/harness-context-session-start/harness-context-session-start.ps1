@@ -42,17 +42,17 @@ if (-not $resolver) {
 if (-not $resolver) { Write-Skip "harness_memory.py resolver unavailable" }
 
 function Resolve-State([string]$name) {
+    # The bash twin enforces the hard 500ms budget; vault-state-path is a fast
+    # local resolve, so the pwsh twin runs it directly (degraded-graceful, DC-3).
     try {
         Push-Location -LiteralPath $eventCwd
-        # 500ms budget via a job; kill on overrun (degraded-graceful).
-        $j = Start-Job { param($p,$r,$n) & $p $r vault-state-path $n 2>$null } -ArgumentList $py,$resolver,$name
-        if (Wait-Job $j -Timeout 1 | Out-Null; $j.State -eq 'Completed') {
-            return ([string](Receive-Job $j)).Trim()
-        }
-        Stop-Job $j -ErrorAction SilentlyContinue
+        $out = & $py $resolver vault-state-path $name 2>$null
+        return ([string]$out).Trim()
+    } catch {
         return ""
-    } catch { return "" }
-    finally { Pop-Location -ErrorAction SilentlyContinue; if ($j) { Remove-Job $j -Force -ErrorAction SilentlyContinue } }
+    } finally {
+        Pop-Location -ErrorAction SilentlyContinue
+    }
 }
 
 $planPath = Resolve-State "PLAN.md"
