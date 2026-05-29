@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/harness-context-session-start/harness-context-session-start.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
