@@ -187,13 +187,17 @@ def load_project_json(resolution: dict) -> dict:
 
 
 def write_config(resolution: dict, config: dict) -> Path:
-    """Atomically write `config` back to the vault project.json path."""
-    path = hm.vault_state_path(resolution, "project.json")
-    if path is None:
-        raise RuntimeError("cannot resolve a vault path for project.json (no slug / vault)")
-    current_mtime = path.stat().st_mtime if path.exists() else None
+    """Atomically write `config` back to project.json.
+
+    Routes through the dispatcher's `write_state_file`, which is
+    `.project-mode`-aware (writes to legacy `<repo>/.harness/` when the project
+    opted out of vault-mode). This MUST match where `load_project_json` read
+    from — otherwise a local-mode project would read the legacy file but write
+    the vault file, dropping the vault's `github`/`env` keys. Raises ValueError
+    if the resolution lacks a vault_path.
+    """
     payload = json.dumps(config, indent=2, ensure_ascii=False) + "\n"
-    return hm.safe_write_replace_style(path, payload, expected_mtime=current_mtime)
+    return hm.write_state_file(resolution, "project.json", payload)
 
 
 def register(
@@ -250,7 +254,9 @@ def _cmd_is_registered(cwd: Path) -> int:
 def _cmd_should_nudge(cwd: Path) -> int:
     """Exit 0 (+ 'nudge') if this cwd should get the configure nudge; else exit 1."""
     cwd = Path(cwd)
-    if not (cwd / ".git").is_dir():
+    # `.git` is a dir in a normal clone but a FILE in a git worktree/submodule
+    # (`gitdir: …`). Accept either so worktrees still get the nudge.
+    if not (cwd / ".git").exists():
         print("silent: not a git repo")
         return 1
     if (cwd / _NO_REGISTER_MARKER).exists():

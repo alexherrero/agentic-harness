@@ -162,6 +162,69 @@ class TestRegisterIntegration(unittest.TestCase):
             # returned config matches.
             self.assertEqual(config["vault_project"], "demo")
 
+    def test_register_does_not_drop_github_env_under_local_mode(self):
+        # Regression (adversarial review 2026-05-29): read_state_file honors
+        # .project-mode=local (reads legacy), so write_config MUST write legacy
+        # too — else it clobbers the vault file, dropping github/env.
+        import harness_memory as hm
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            vault = root / "vault"
+            (vault / "projects" / "demo" / "_harness").mkdir(parents=True)
+            vault_pj = vault / "projects" / "demo" / "_harness" / "project.json"
+            vault_pj.write_text(
+                json.dumps({
+                    "vault_project": "demo",
+                    "github": {"owner": "acme", "repo": "acme/demo", "number": 42},
+                    "env": {"SECRET": "keep-me"},
+                }),
+                encoding="utf-8",
+            )
+            (vault / "projects" / "demo" / "_harness" / ".project-mode").write_text(
+                "local", encoding="utf-8"
+            )
+            repo = root / "repo"
+            (repo / ".harness").mkdir(parents=True)
+            (repo / ".harness" / "project.json").write_text(
+                json.dumps({"vault_project": "demo"}), encoding="utf-8"
+            )
+            old_env = os.environ.get("MEMORY_VAULT_PATH")
+            os.environ["MEMORY_VAULT_PATH"] = str(vault)
+            hm._reset_warn_state()
+            try:
+                pc.register(repo, registered_via="auto-detect")
+            finally:
+                if old_env is None:
+                    os.environ.pop("MEMORY_VAULT_PATH", None)
+                else:
+                    os.environ["MEMORY_VAULT_PATH"] = old_env
+            # The vault file (with github/env) must be intact — local-mode writes
+            # to legacy, not over the vault.
+            vault_data = json.loads(vault_pj.read_text(encoding="utf-8"))
+            self.assertEqual(vault_data.get("github"), {"owner": "acme", "repo": "acme/demo", "number": 42})
+            self.assertEqual(vault_data.get("env"), {"SECRET": "keep-me"})
+            # The enablement block landed in the legacy file (the local-mode target).
+            legacy_data = json.loads((repo / ".harness" / "project.json").read_text(encoding="utf-8"))
+            self.assertIn("skills", legacy_data)
+            self.assertEqual(legacy_data["vault_project"], "demo")
+
+
+class TestShouldNudgeGit(unittest.TestCase):
+    def test_dotgit_file_worktree_counts_as_git(self):
+        # A git worktree/submodule has `.git` as a FILE (`gitdir: …`), not a dir.
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            (repo / ".git").write_text("gitdir: /elsewhere/.git/worktrees/x\n", encoding="utf-8")
+            # Not a harness source, no marker, no vault registration -> nudge.
+            old_env = os.environ.get("MEMORY_VAULT_PATH")
+            os.environ.pop("MEMORY_VAULT_PATH", None)
+            try:
+                rc = pc.main(["should-nudge", str(repo)])
+            finally:
+                if old_env is not None:
+                    os.environ["MEMORY_VAULT_PATH"] = old_env
+            self.assertEqual(rc, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
