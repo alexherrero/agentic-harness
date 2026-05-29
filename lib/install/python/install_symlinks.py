@@ -120,18 +120,16 @@ def symlink_targets_for_clone(
             for child in sorted(harness_agents.iterdir()):
                 if child.is_file() and child.suffix == ".md":
                     out.append((child, f"agents/{child.name}", False))
-        # agentm/harness/skills/  — mixed dir-bundles + single-file .md skills
-        #   <name>/   → skills/<name>/   (dir symlinks)
-        #   <name>.md → skills/<name>.md (file symlinks)
+        # agentm/harness/skills/<name>/ → skills/<name>/ (dir bundles only).
+        # Loose <name>.md siblings here (e.g. doctor.md, migrate-to-diataxis.md)
+        # are canonical long-form specs, NOT installable skills: Claude Code
+        # loads a skill as <name>/SKILL.md, so a top-level skills/<name>.md is
+        # inert and only litters targets with duplicate spec symlinks.
         harness_skills = clone_root / "harness" / "skills"
         if harness_skills.is_dir():
             for child in sorted(harness_skills.iterdir()):
-                if child.name.startswith("."):
-                    continue
-                if child.is_dir():
+                if child.is_dir() and not child.name.startswith("."):
                     out.append((child, f"skills/{child.name}", True))
-                elif child.is_file() and child.suffix == ".md":
-                    out.append((child, f"skills/{child.name}", False))
         # agentm/harness/hooks/<name>/ → hooks/<name>/ (dir bundles only)
         harness_hooks = clone_root / "harness" / "hooks"
         if harness_hooks.is_dir():

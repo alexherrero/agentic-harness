@@ -178,5 +178,33 @@ class NormalizePathStrTests(unittest.TestCase):
         self.assertTrue(ism._path_under(clone_root / "x.md", Path("C:\\fixture\\agentm")))
 
 
+class HarnessSkillsMappingTests(unittest.TestCase):
+    """Loose `.md` siblings under `harness/skills/` are canonical specs, not
+    installable skills, and must NOT be mapped into the install prefix — only
+    `<name>/` dir bundles are. Regression for the duplicate-spec-symlink litter
+    (e.g. `skills/doctor.md` shadowing the real `skills/doctor/` bundle).
+    """
+
+    def test_skill_dirs_mapped_loose_md_skipped(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            skills = root / "agentm" / "harness" / "skills"
+            (skills / "doctor").mkdir(parents=True)
+            (skills / "doctor" / "SKILL.md").write_text("doctor skill\n")
+            # Loose spec sibling sharing the dir-skill's name.
+            (skills / "doctor.md").write_text("doctor canonical spec\n")
+            # Loose spec with no matching dir at all (deprecated migrate spec).
+            (skills / "migrate-to-diataxis.md").write_text("deprecated spec\n")
+
+            mapping = ism.symlink_targets_for_clone("agentm", root / "agentm")
+            rels = {rel for _src, rel, _is_dir in mapping}
+
+            self.assertIn("skills/doctor", rels)
+            self.assertNotIn("skills/doctor.md", rels)
+            self.assertNotIn("skills/migrate-to-diataxis.md", rels)
+            doctor_entry = next(m for m in mapping if m[1] == "skills/doctor")
+            self.assertTrue(doctor_entry[2], "skill dir must map as is_dir=True")
+
+
 if __name__ == "__main__":
     unittest.main()
