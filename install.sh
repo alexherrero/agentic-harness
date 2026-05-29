@@ -379,9 +379,17 @@ if [[ "$SCOPE" == "user" ]]; then
     [[ -d "$HOME/Antigravity/agentm" ]] && SOURCE_FLAGS+=(--agentm "$HOME/Antigravity/agentm")
     [[ -d "$HOME/Antigravity/crickets" ]] && SOURCE_FLAGS+=(--crickets "$HOME/Antigravity/crickets")
     if [[ ${#SOURCE_FLAGS[@]} -gt 0 ]]; then
-      python3 "$HARNESS_ROOT/lib/install/python/install_symlinks.py" \
-        "$USER_INSTALL_PREFIX" "${SOURCE_FLAGS[@]}" > /dev/null
-      echo "    symlinks: created"
+      _SYM_OUT="$(python3 "$HARNESS_ROOT/lib/install/python/install_symlinks.py" \
+        "$USER_INSTALL_PREFIX" "${SOURCE_FLAGS[@]}" 2>/dev/null || echo '{}')"
+      _SYM_REAPED="$(printf '%s' "$_SYM_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); v=d.get('reaped') or []; print('\n'.join(v))" 2>/dev/null || true)"
+      if [[ -n "$_SYM_REAPED" ]]; then
+        _SYM_REAP_COUNT="$(printf '%s\n' "$_SYM_REAPED" | wc -l | tr -d ' ')"
+        echo "    symlinks: created (reaped $_SYM_REAP_COUNT orphan(s):"
+        printf '%s\n' "$_SYM_REAPED" | sed 's/^/      - /'
+        echo "    )"
+      else
+        echo "    symlinks: created"
+      fi
     fi
   else
     # Release-mode: copy customizations from this harness's source tree

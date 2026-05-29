@@ -234,6 +234,82 @@ def _classify_existing(link: Path, expected_source: Path) -> str:
 # High-level operation
 # -----------------------------------------------------------------------------
 
+# Managed subdirs under install_prefix that this primitive owns. Orphan
+# reaping (below) walks these and only these — anything outside is
+# operator-owned and out of scope.
+_MANAGED_SUBDIRS = ("agents", "commands", "skills", "hooks", "scripts")
+
+
+def _reap_orphan_symlinks(
+    install_prefix: Path,
+    source_clones: dict[str, str],
+    expected_links: set[Path],
+) -> list[str]:
+    """Unlink dead symlinks under install_prefix that point into a source clone.
+
+    "Orphan" = a symlink whose target path is under one of source_clones
+    AND no longer exists on disk. Typically arises when a skill / agent /
+    command / hook file is deleted from the source clone; the prior install
+    left a symlink that now dangles.
+
+    Safety rules (intentionally narrow — never delete operator-placed files):
+      - Only touches entries that are symlinks (`is_symlink()`). Real files
+        and real dirs are operator-owned (DC-8) and left untouched.
+      - Only reaps symlinks whose readlink target is under one of the
+        source_clones roots. Symlinks pointing elsewhere (e.g. operator's own
+        manual symlinks) are out of scope.
+      - Only reaps when the target is genuinely absent. A live symlink whose
+        target still exists is left alone (the caller's create loop already
+        classified it as "skipped" or "repointed").
+      - Skips entries already in `expected_links` (set of Paths the caller's
+        current install just created/touched). Defense-in-depth against a
+        race where the create loop wrote a symlink and reaping then tried
+        to unlink it.
+
+    Returns the list of install-relative paths that were unlinked.
+    """
+    clone_roots = [Path(p).resolve() for p in source_clones.values() if Path(p).is_dir()]
+    if not clone_roots:
+        return []
+
+    reaped: list[str] = []
+    for sub in _MANAGED_SUBDIRS:
+        sub_dir = install_prefix / sub
+        if not sub_dir.is_dir():
+            continue
+        for child in sorted(sub_dir.iterdir()):
+            if child in expected_links:
+                continue
+            if not child.is_symlink():
+                continue
+            try:
+                target = Path(os.readlink(child))
+            except OSError:
+                continue
+            if not target.is_absolute():
+                target = (child.parent / target)
+            # Only reap symlinks pointing into one of the source clones.
+            try:
+                target_resolved = target.resolve(strict=False)
+            except (OSError, RuntimeError):
+                continue
+            in_clone = any(
+                str(target_resolved).startswith(str(r) + os.sep) or target_resolved == r
+                for r in clone_roots
+            )
+            if not in_clone:
+                continue
+            # Only reap if the target is genuinely absent (broken link).
+            if target.exists():
+                continue
+            try:
+                child.unlink()
+            except OSError:
+                continue
+            reaped.append(f"{sub}/{child.name}")
+    return reaped
+
+
 def symlink_customizations(
     source_clones: dict[str, str],
     install_prefix: Path | str,
@@ -242,14 +318,18 @@ def symlink_customizations(
 ) -> dict[str, list[str]]:
     """Symlink customizations from detected source clones into install_prefix.
 
-    Returns `{created, repointed, skipped, conflicts}` lists of install-relative
-    paths. Caller can surface counts or per-entry detail.
+    Returns `{created, repointed, skipped, conflicts, reaped}` lists of
+    install-relative paths. Caller can surface counts or per-entry detail.
 
     Idempotent — re-running on already-symlinked target classifies as
     "skipped" + does nothing.
 
     `force=True` replaces real files/dirs at conflict paths (rm + symlink).
     Defaults to False — operator sees warnings + can re-run with --force.
+
+    Reaping: after the create/repoint loop, dead symlinks pointing into a
+    source clone (whose target was deleted upstream) are unlinked. Operator-
+    placed real files/symlinks are never touched. See `_reap_orphan_symlinks`.
     """
     prefix = Path(install_prefix)
     prefix.mkdir(parents=True, exist_ok=True)
@@ -259,7 +339,9 @@ def symlink_customizations(
         "repointed": [],
         "skipped": [],
         "conflicts": [],
+        "reaped": [],
     }
+    expected_links: set[Path] = set()
 
     for slug, clone_root_str in source_clones.items():
         clone_root = Path(clone_root_str)
@@ -267,6 +349,7 @@ def symlink_customizations(
             continue
         for source_path, rel_install, is_dir in symlink_targets_for_clone(slug, clone_root):
             link = prefix / rel_install
+            expected_links.add(link)
             state = _classify_existing(link, source_path)
 
             if state == "absent":
@@ -292,6 +375,7 @@ def symlink_customizations(
                 else:
                     out["conflicts"].append(rel_install)
 
+    out["reaped"] = _reap_orphan_symlinks(prefix, source_clones, expected_links)
     return out
 
 
