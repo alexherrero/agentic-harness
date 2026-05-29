@@ -293,6 +293,65 @@ _agentm_vault_first_run_prompt() {
     fi
 }
 
+# ── --scope user: merge installed hooks' settings fragments (V4 #39) ─────────
+# The --scope user install (symlink/copy) drops hook DIRS into
+# <prefix>/hooks/<name>/ but, pre-v4.6.1, never merged their
+# settings-fragment-bash.json into <prefix>/settings.json — so no SessionStart
+# (or other) hook actually fired. This function walks the INSTALLED hook dirs
+# (covers both agentm harness/hooks/ and crickets hooks/, whichever landed),
+# merges each bash fragment, and ABSOLUTIZES the command to the user-scope dir
+# layout `bash <prefix>/hooks/<name>/<name>.sh` (source fragments stay
+# project-relative on disk; we rewrite per scope — locked DC-1). Writes a JSON
+# array of {path, sha256} fragment records to $2 for the install-state
+# `fragments` field (install_state_sync drift detection). Idempotent: re-running
+# merges nothing new (dedup by absolutized command) + recomputes identical records.
+_agentm_merge_user_hook_fragments() {
+    local prefix="$1" out="$2"
+    : > "$out.records"
+    local hooks_dir="$prefix/hooks"
+    if [[ ! -d "$hooks_dir" ]] || ! command -v python3 >/dev/null 2>&1; then
+        printf '[]\n' > "$out"
+        rm -f "$out.records"
+        return 0
+    fi
+    local merged=0 hookdir name frag script sha
+    for hookdir in "$hooks_dir"/*/; do
+        [[ -d "$hookdir" ]] || continue
+        name="$(basename "$hookdir")"
+        frag="${hookdir}settings-fragment-bash.json"
+        script="${hookdir}${name}.sh"
+        # Only register hooks that ship a bash fragment AND a runnable script
+        # (follows symlinks under source mode).
+        [[ -f "$frag" && -f "$script" ]] || continue
+        if python3 "$HARNESS_ROOT/scripts/merge-settings-fragment.py" \
+                "$prefix/settings.json" "$frag" --command "bash $script" >/dev/null 2>&1; then
+            merged=$((merged + 1))
+            sha="$(python3 -c "import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$frag" 2>/dev/null || echo "")"
+            printf '%s\t%s\n' "$frag" "$sha" >> "$out.records"
+        else
+            echo "    WARN: failed to merge settings fragment for user-scope hook '$name'" >&2
+        fi
+    done
+    # Arrayify the tab-separated records into the fragments JSON file.
+    python3 -c "
+import json, sys
+recs = []
+try:
+    for line in open(sys.argv[1], encoding='utf-8'):
+        line = line.rstrip('\n')
+        if not line:
+            continue
+        path, _, sha = line.partition('\t')
+        recs.append({'path': path, 'sha256': sha})
+except FileNotFoundError:
+    pass
+with open(sys.argv[2], 'w', encoding='utf-8') as fh:
+    json.dump(recs, fh, indent=2)
+" "$out.records" "$out" 2>/dev/null || printf '[]\n' > "$out"
+    rm -f "$out.records"
+    echo "    hooks: merged $merged settings fragment(s) into $prefix/settings.json"
+}
+
 # ── --scope user dispatch (V4 #30 task 8) ───────────────────────────────────
 # When --scope user, install customizations into ~/.claude/ via the symlink
 # (source mode) or copy (release mode) primitive. Skip the per-project
@@ -337,11 +396,19 @@ if [[ "$SCOPE" == "user" ]]; then
     echo "    customizations: copied"
   fi
 
-  # Persist install state
+  # V4 #39: merge installed hooks' settings fragments into <prefix>/settings.json
+  # (the pre-v4.6.1 gap — hook dirs landed but nothing fired). Produces a
+  # {path, sha256} records file consumed by persist's --fragments-file below.
+  _AGENTM_FRAG_RECORDS="$(mktemp -t agentm-frag.XXXXXX)"
+  _agentm_merge_user_hook_fragments "$USER_INSTALL_PREFIX" "$_AGENTM_FRAG_RECORDS"
+
+  # Persist install state (incl. the merged-fragments records for drift detection)
   python3 "$HARNESS_ROOT/lib/install/python/install_state.py" persist \
     "$USER_INSTALL_PREFIX" \
     --harness-version "$HARNESS_VERSION" \
-    --installer-source "$HARNESS_ROOT/install.sh" > /dev/null
+    --installer-source "$HARNESS_ROOT/install.sh" \
+    --fragments-file "$_AGENTM_FRAG_RECORDS" > /dev/null
+  rm -f "$_AGENTM_FRAG_RECORDS"
 
   # Install agentm-update launcher to ~/.local/bin (if writable)
   USER_BIN="${HOME}/.local/bin"

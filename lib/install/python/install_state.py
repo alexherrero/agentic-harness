@@ -292,6 +292,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_persist.add_argument("--agentm-path", default=None, help="override canonical agentm clone path")
     p_persist.add_argument("--crickets-path", default=None, help="override canonical crickets clone path")
     p_persist.add_argument("--installer-source", default=None, help="absolute path to install.sh used to bootstrap (recorded for agentm-update launcher)")
+    p_persist.add_argument("--fragments-file", default=None, help="path to a JSON file containing a list of {path, sha256} records for settings.json fragments merged at install time (written to the .fragments field for install_state_sync drift detection)")
 
     p_read = sub.add_parser(
         "read", help="emit current install state JSON, or empty if absent",
@@ -321,11 +322,19 @@ def main(argv: Optional[list[str]] = None) -> int:
         try:
             mode, clones = detect_install_mode(args.agentm_path, args.crickets_path)
             prefix = Path(os.path.expanduser(args.install_prefix))
+            fragments = None
+            if args.fragments_file is not None:
+                frag_path = Path(os.path.expanduser(args.fragments_file))
+                loaded = json.loads(frag_path.read_text(encoding="utf-8"))
+                if not isinstance(loaded, list):
+                    raise ValueError("--fragments-file must contain a JSON list")
+                fragments = loaded
             path = persist_install_state(
                 prefix, mode, clones, args.harness_version,
                 installer_source=args.installer_source,
+                fragments=fragments,
             )
-        except (ValueError, OSError) as exc:
+        except (ValueError, OSError, json.JSONDecodeError) as exc:
             print(f"[install_state] {exc}", file=sys.stderr)
             return 2
         sys.stdout.write(str(path) + "\n")

@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+"""Unit tests for the V4 #39 `--fragments-file` flag on
+lib/install/python/install_state.py's `persist` subcommand.
+
+The function `persist_install_state()` already accepted a `fragments` param;
+v4.6.1 exposes it via the CLI so install.sh can record the {path, sha256} of
+each merged settings fragment (for install_state_sync drift detection).
+
+Driven as a subprocess to exercise the real CLI. `--agentm-path` /
+`--crickets-path` are pointed at empty temp dirs to force deterministic
+release-mode detection (independent of the test host's real clones).
+
+Run: python3 scripts/test_install_state_fragments.py
+"""
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+_HERE = Path(__file__).resolve().parent
+_INSTALL_STATE = _HERE.parent / "lib" / "install" / "python" / "install_state.py"
+
+
+class TestPersistFragments(unittest.TestCase):
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.prefix = self.root / "prefix"
+        self.prefix.mkdir()
+        # Empty dirs → not source clones → deterministic release mode.
+        self.fake_agentm = self.root / "no-agentm"
+        self.fake_crickets = self.root / "no-crickets"
+        self.fake_agentm.mkdir()
+        self.fake_crickets.mkdir()
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def _persist(self, *extra: str):
+        return subprocess.run(
+            [sys.executable, str(_INSTALL_STATE), "persist", str(self.prefix),
+             "--harness-version", "v4.6.1",
+             "--agentm-path", str(self.fake_agentm),
+             "--crickets-path", str(self.fake_crickets),
+             *extra],
+            capture_output=True, text=True,
+        )
+
+    def _config(self) -> dict:
+        return json.loads((self.prefix / ".agentm-config.json").read_text(encoding="utf-8"))
+
+    def test_fragments_file_written_to_config(self) -> None:
+        frags = [
+            {"path": "/home/u/.claude/hooks/x/settings-fragment-bash.json", "sha256": "abc123"},
+            {"path": "/home/u/.claude/hooks/y/settings-fragment-bash.json", "sha256": "def456"},
+        ]
+        ff = self.root / "frags.json"
+        ff.write_text(json.dumps(frags), encoding="utf-8")
+        r = self._persist("--fragments-file", str(ff))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self._config().get("fragments"), frags)
+
+    def test_no_fragments_file_means_no_fragments_field(self) -> None:
+        r = self._persist()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("fragments", self._config())
+
+    def test_empty_fragments_list_writes_empty_array(self) -> None:
+        ff = self.root / "frags.json"
+        ff.write_text("[]", encoding="utf-8")
+        r = self._persist("--fragments-file", str(ff))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self._config().get("fragments"), [])
+
+    def test_invalid_fragments_json_exits_2(self) -> None:
+        ff = self.root / "frags.json"
+        ff.write_text("{not a list", encoding="utf-8")
+        r = self._persist("--fragments-file", str(ff))
+        self.assertEqual(r.returncode, 2)
+
+    def test_non_list_fragments_exits_2(self) -> None:
+        ff = self.root / "frags.json"
+        ff.write_text(json.dumps({"path": "x"}), encoding="utf-8")
+        r = self._persist("--fragments-file", str(ff))
+        self.assertEqual(r.returncode, 2)
+
+    def test_vault_path_preserved_alongside_fragments(self) -> None:
+        # Pre-existing config with a vault_path → persist preserves it + adds fragments.
+        (self.prefix / ".agentm-config.json").write_text(
+            json.dumps({"schema_version": 2, "mode": "release", "vault_path": "/v/x"}),
+            encoding="utf-8",
+        )
+        ff = self.root / "frags.json"
+        ff.write_text(json.dumps([{"path": "p", "sha256": "s"}]), encoding="utf-8")
+        r = self._persist("--fragments-file", str(ff))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        cfg = self._config()
+        self.assertEqual(cfg.get("vault_path"), "/v/x")
+        self.assertEqual(cfg.get("fragments"), [{"path": "p", "sha256": "s"}])
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -31,6 +31,15 @@ shared-lib extraction.
 
 Usage:
   python3 merge-settings-fragment.py <settings_json_path> <fragment_json_path>
+                                      [--command <CMD>]
+
+  --command <CMD>  Rewrite every inner hook's `command` to <CMD> before merging.
+                   Used by the `--scope user` installer to absolutize a
+                   fragment's project-relative `bash .claude/hooks/<name>.sh`
+                   to the user-scope dir layout `bash ~/.claude/hooks/<name>/<name>.sh`.
+                   Dedup uses the rewritten command, so re-running with the same
+                   --command is idempotent. (One fragment ships one hook script,
+                   so a single override applies to all its event entries.)
 
 Exit:
   0  merged successfully (or no-op if fragment entries were already present)
@@ -39,6 +48,7 @@ Exit:
 """
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -62,15 +72,27 @@ def has_command_match(existing_entries: list, new_command: str) -> bool:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 3:
-        print(
-            f"usage: {argv[0]} <settings_json_path> <fragment_json_path>",
-            file=sys.stderr,
-        )
+    parser = argparse.ArgumentParser(
+        prog="merge-settings-fragment.py",
+        description="Idempotently deep-merge a hook settings fragment into settings.json.",
+        add_help=True,
+    )
+    parser.add_argument("settings_json_path")
+    parser.add_argument("fragment_json_path")
+    parser.add_argument(
+        "--command", default=None,
+        help="rewrite every inner hook's `command` to this value before merge "
+             "(used by --scope user to absolutize the hook script path)",
+    )
+    try:
+        args = parser.parse_args(argv[1:])
+    except SystemExit:
+        # argparse exits 2 on bad args; preserve that contract.
         return 2
 
-    settings_path = Path(argv[1])
-    fragment_path = Path(argv[2])
+    settings_path = Path(args.settings_json_path)
+    fragment_path = Path(args.fragment_json_path)
+    command_override = args.command
 
     if not fragment_path.is_file():
         print(f"merge-settings-fragment: fragment not found: {fragment_path}", file=sys.stderr)
@@ -117,6 +139,14 @@ def main(argv: list[str]) -> int:
             inner_hooks = entry.get("hooks", [])
             if not isinstance(inner_hooks, list) or not inner_hooks:
                 continue
+            # --command: rewrite every inner hook's command to the override (a
+            # fragment ships one hook script, so all event entries point at it).
+            # The rewrite happens before the dedup check so re-running with the
+            # same --command is idempotent.
+            if command_override is not None:
+                for inner in inner_hooks:
+                    if isinstance(inner, dict) and "command" in inner:
+                        inner["command"] = command_override
             # Use the first inner hook's command as the dedup key.
             first_command = inner_hooks[0].get("command")
             if not isinstance(first_command, str):
