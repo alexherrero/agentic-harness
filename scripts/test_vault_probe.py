@@ -169,10 +169,13 @@ class TestOperatorBugEndToEnd(unittest.TestCase):
             (agentmem / "_meta").mkdir(parents=True)
             (agentmem / "_meta" / "repos.json").write_text("{}", encoding="utf-8")
 
-            ranked = vp.rank_candidates([str(obs / ".obsidian")])
-            self.assertEqual(ranked, [{"root": str(obs), "kind": "obsidian"}])
+            # rank_candidates parses macOS `find` output (POSIX paths), so feed
+            # POSIX form via as_posix() — on Windows CI, str(Path) uses
+            # backslashes which PurePosixPath (correctly) wouldn't split.
+            ranked = vp.rank_candidates([(obs / ".obsidian").as_posix()])
+            self.assertEqual(ranked, [{"root": obs.as_posix(), "kind": "obsidian"}])
             refined = vp.find_nested_vault(ranked[0]["root"])
-            self.assertEqual(refined, str(agentmem))  # the WRONG dir pre-v4.5.2
+            self.assertEqual(refined, str(agentmem))  # the correct nested dir (was missed pre-v4.5.2)
 
 
 # -----------------------------------------------------------------------------
