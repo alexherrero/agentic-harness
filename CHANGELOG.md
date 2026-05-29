@@ -5,6 +5,31 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v4.7.0] — 2026-05-29 — Installer + hooks robustness batch (orphan-symlink reaping, cross-scope path resolution)
+
+**MINOR.** Bundles the eight installer/hooks-hardening commits accumulated since v4.6.1, surfaced and closed during a `crickets` dogfood `/doctor` audit. The marquee change is **orphan-symlink reaping** on user-scope source-mode installs (a `feat:`, hence the minor bump); the rest are robustness fixes — cross-install-scope memory-skill path resolution (the V4.7 silent-broken `memory-recall` shape), Windows path-normalization for the reaper, user-scope `telemetry.sh` seeding, and a fix so the installer stops symlinking loose canonical specs under `harness/skills/` as inert skills. Ships alongside the companion [crickets v2.1.2](https://github.com/alexherrero/crickets/releases/tag/v2.1.2) (gitignores `.harness/` so the session-marker can't leak into that public repo).
+
+### Added
+
+- **Orphan-symlink reaping on user-scope source-mode install** ([`8c5af42`](https://github.com/alexherrero/agentm/commit/8c5af42)) — `install.sh` now reaps dangling symlinks under `<prefix>/{agents,commands,skills,hooks,scripts}/` that point into a source clone whose target file was deleted. Intentionally narrow: only touches symlinks (never operator-placed real files), only those pointing into a known clone, only when the target is genuinely absent — live symlinks and external/operator symlinks are left alone.
+
+### Changed
+
+- **Installer stops symlinking loose `.md` specs under `harness/skills/`** ([`3f0f56c`](https://github.com/alexherrero/agentm/commit/3f0f56c)) — `symlink_targets_for_clone` treated loose `<name>.md` siblings (e.g. `doctor.md`, `migrate-to-diataxis.md`) as installable "single-file skills" and symlinked them into targets, but Claude Code loads skills as `<name>/SKILL.md`, so a top-level `skills/<name>.md` is inert and only littered installs with duplicate spec symlinks. Now maps dir bundles only; the loose specs stay as repo docs.
+- **`memory-recall` hook resolves `recall.py` across install scopes** ([`a79f9f6`](https://github.com/alexherrero/agentm/commit/a79f9f6)) — pre-fix the hook hardcoded a project-scope relative path and assumed `MEMORY_VAULT_PATH` was injected into the hook env; neither held on user-scope installs, so the hook exited 0 emitting nothing despite always-load entries in the vault. Now resolves the memory-skill path across project/user scopes.
+- **`_reap_orphan_symlinks` path normalization for Windows** ([`b2a922d`](https://github.com/alexherrero/agentm/commit/b2a922d)) — the reaper's broken-symlink-target comparison used naive `str.startswith`, which silently no-op'd on Windows (extended-path prefix asymmetry: `\\?\C:\…` on the clone root vs plain `C:\…` on the resolved target). Added `_normalize_path_str` / `_path_under` so orphans actually get reaped cross-platform.
+- **`telemetry.sh` seeded at user scope** ([`f8a356d`](https://github.com/alexherrero/agentm/commit/f8a356d)) — `install.sh` now seeds `<prefix>/scripts/telemetry.sh` (the multi-project usage scanner) on user-scope installs, and a stale doctor Task-9 stub was dropped.
+
+### Internal
+
+- **Regression + cross-platform test coverage** ([`73ae161`](https://github.com/alexherrero/agentm/commit/73ae161), [`7023340`](https://github.com/alexherrero/agentm/commit/7023340), [`3f0f56c`](https://github.com/alexherrero/agentm/commit/3f0f56c)) — neutral Windows path fixtures (avoid the `C:\Users\<name>` shape the PII guard flags), a "tests-are-sacred" rule-5 clarification, and a new `HarnessSkillsMappingTests` asserting loose `.md` siblings under `harness/skills/` are not mapped while dir bundles are.
+- **`.checksums.txt` regenerated** ([`b086207`](https://github.com/alexherrero/agentm/commit/b086207)) — lib-parity sync to crickets.
+
+### Cross-references
+
+- [crickets v2.1.2](https://github.com/alexherrero/crickets/releases/tag/v2.1.2) — companion release; gitignores `.harness/` (the `memory-recall-session-start` marker carries a personal transcript path, and crickets is public).
+- [agentm v4.6.1](https://github.com/alexherrero/agentm/releases/tag/v4.6.1) — the prior release; v4.7.0 continues its user-scope-install hardening.
+
 ## [v4.6.1] — 2026-05-28 — Installer hook-wiring repair + harness-context hook + doctor wiring probe (V4 #39)
 
 **PATCH.** Single-repo release; crickets stays at v2.1.0 (it received a byte-identical `lib/install/python/install_state.py` sync via [`ebf92fa`](https://github.com/alexherrero/crickets/commit/ebf92fa) but **no release tag** — lib-parity only). Fixes a v4.5.1/v4.6.0 **installer regression**: `install.sh --scope user` dropped hook dirs into `~/.claude/hooks/<name>/` but never merged their `settings-fragment-bash.json` into `~/.claude/settings.json`, so `settings.json` had no `hooks` block and **none of the 10 installed hooks fired on any device**. (Surfaced when the agent missed a vault-resident `PLAN.md` because no SessionStart hook was wired to surface it.) The semver bump is PATCH — the regression fix is the load-bearing change; the new hook + doctor probe ride along as bundled improvements.
