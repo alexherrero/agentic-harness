@@ -393,6 +393,14 @@ if [[ "$SCOPE" == "user" ]]; then
           "$HARNESS_ROOT/$src_subdir" "$USER_INSTALL_PREFIX" >/dev/null 2>&1 || true
       fi
     done
+    # User-scope helper scripts. telemetry.sh roots across multiple projects
+    # (`--all` scans ~/Antigravity etc.) so it belongs at <prefix>/scripts/,
+    # not per-project. Mirrors install_symlinks.py source-mode behavior.
+    if [[ -f "$HARNESS_ROOT/templates/scripts/telemetry.sh" ]]; then
+      mkdir -p "$USER_INSTALL_PREFIX/scripts"
+      cp "$HARNESS_ROOT/templates/scripts/telemetry.sh" "$USER_INSTALL_PREFIX/scripts/telemetry.sh"
+      chmod +x "$USER_INSTALL_PREFIX/scripts/telemetry.sh"
+    fi
     echo "    customizations: copied"
   fi
 

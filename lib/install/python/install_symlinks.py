@@ -12,6 +12,12 @@ Symlinkable subset (DC-7):
                     agentm/adapters/claude-code/agents/<name>.md)
 - Command .md files (agentm/adapters/claude-code/commands/<name>.md)
 - Hook bundles     (crickets/hooks/<name>/ — each hook is a dir bundle)
+- User-scope helper scripts (agentm/templates/scripts/telemetry.sh →
+                    <prefix>/scripts/telemetry.sh). telemetry roots across
+                    multiple projects (`--all` walks ~/Antigravity etc.) so
+                    a single user-scope copy is the right shape; pre-V4 #26
+                    per-project copies in <project>/.harness/scripts/ are
+                    legacy.
 
 NOT symlinked (DC-8 — these merge with operator-edited content):
 - settings.json fragments
@@ -132,6 +138,11 @@ def symlink_targets_for_clone(
             for child in sorted(harness_hooks.iterdir()):
                 if child.is_dir() and not child.name.startswith("."):
                     out.append((child, f"hooks/{child.name}", True))
+        # agentm/templates/scripts/telemetry.sh → scripts/telemetry.sh
+        # User-scope helper (multi-project scan); doctor checks <prefix>/scripts/.
+        telemetry_src = clone_root / "templates" / "scripts" / "telemetry.sh"
+        if telemetry_src.is_file():
+            out.append((telemetry_src, "scripts/telemetry.sh", False))
         # agentm/adapters/claude-code/{skills,agents,commands}/
         ac_root = clone_root / "adapters" / "claude-code"
         for subdir, is_dir_kind in (("skills", True), ("agents", False), ("commands", False)):

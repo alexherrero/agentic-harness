@@ -33,7 +33,7 @@ Multiple adapters may be present in the same project (the installer supports tha
 For each detected adapter, verify the expected name set is present and each file parses. The expected sets come from the same source as `scripts/check-parity.sh`:
 
 - **Phase commands** (required): `bugfix, plan, release, review, setup, work`. Plus `recent-wiki-changes` (V4 #30 plan 2, v4.4.0+) — graceful-skip if absent on a pre-v4.4.0 install.
-- **Sub-agents** (required): `adversarial-reviewer, adversarial-reviewer-cross, documenter, explorer`. Optional extras shipped by harness in V3+: `gemini-adapter-research, memory-idea-researcher`. Optional extras shipped by crickets: `adapt-evaluator, diataxis-evaluator, evaluator` (graceful-skip if crickets not paired).
+- **Sub-agents** (required): `adversarial-reviewer, adversarial-reviewer-cross, documenter, explorer`. Optional extras shipped by harness in V3+: `memory-idea-researcher`. Optional extras shipped by crickets: `adapt-evaluator, diataxis-evaluator, evaluator` (graceful-skip if crickets not paired).
 - **Skills** (required, harness-shipped): `doctor, migrate-to-diataxis, wiki-author` (wiki-author landed in V4 #30 plan 2 / v4.4.0). Optional harness-shipped compound skills: `design, diataxis-author, memory, ship-release` — graceful-skip if absent (they may be deferred via `install.sh --no-compound-skills` or similar). Optional crickets-shipped skills: `dependabot-fixer, pii-scrubber` — graceful-skip if crickets is not paired.
 
 For each expected item:
@@ -43,10 +43,13 @@ For each expected item:
 
 Then:
 4. **State files (V4 #26-aware)**: Resolve via this two-step ladder:
-   - **Vault-resident (post-v4.1.0 default)** — invoke `python3 <agentm>/scripts/harness_memory.py vault-state-path PLAN.md` (and same for `progress.md`, `scripts/telemetry.sh`). The CLI exits 0 + prints the resolved path when the vault is reachable AND the project is registered; exits 1 + empty stdout otherwise (graceful-skip signal). PASS if the resolver returns a path that exists on disk.
-   - **Legacy `.harness/<file>` fallback** — if `vault-state-path` exits non-zero (vault unreachable from this shell, or project not registered), check `<project>/.harness/PLAN.md`, `<project>/.harness/progress.md`, `<project>/.harness/scripts/telemetry.sh`. PASS if all three exist.
+   - **Vault-resident (post-v4.1.0 default)** — invoke `python3 <agentm>/scripts/harness_memory.py vault-state-path PLAN.md` (and same for `progress.md`). The CLI exits 0 + prints the resolved path when the vault is reachable AND the project is registered; exits 1 + empty stdout otherwise (graceful-skip signal). PASS if the resolver returns paths that exist on disk.
+   - **Legacy `.harness/<file>` fallback** — if `vault-state-path` exits non-zero (vault unreachable from this shell, or project not registered), check `<project>/.harness/PLAN.md` + `<project>/.harness/progress.md`. PASS if both exist.
    - Report which mode resolved (e.g. `state files [OK] vault-resident — <vault>/projects/<slug>/_harness/` or `state files [OK] legacy .harness/`).
-   - FAIL only if neither resolution path produces all three files. A `.harness/` empty of state files alongside a healthy vault resolution is the EXPECTED V4 #26+ shape — not a fail.
+   - FAIL only if neither resolution path produces both files. A `.harness/` empty of state files alongside a healthy vault resolution is the EXPECTED V4 #26+ shape — not a fail.
+   - `telemetry.sh` (pre-v4.6.2 also checked here) moved to user scope in v4.6.2 — see "Helper scripts" below. Per-project vault copies of `scripts/telemetry.sh` are no longer expected.
+
+4b. **Helper scripts (user-scope; v4.6.2+).** Check `<prefix>/scripts/telemetry.sh` exists + is executable. PASS if present. WARN (graceful-skip, never FAIL) if absent — older installs predate the move. Reason for the move: `telemetry.sh` roots across multiple projects (its `--all` flag scans `~/Antigravity`, `~/Claude`, `~/Projects`), so a single user-scope copy is the right shape; per-project vault copies create N stale duplicates when the script changes.
 5. **Host wiring file**: `AGENTS.md` exists at repo root. Adapter-specific overlay file exists (`CLAUDE.md` for Claude Code, `.gemini/settings.json` for Gemini pointing at `AGENTS.md`).
 6. **Hook wiring** (Claude Code; V4 #39 — a real check, not "absent block is fine"). Hooks install at user scope (`<prefix>/hooks/<name>/`, prefix = `$AGENTM_INSTALL_PREFIX` → `~/.claude`) under `--scope user`; the installer MUST merge each hook's `settings-fragment-bash.json` into `<prefix>/settings.json` (V4 #39 task 1). Apply this truth table to `<prefix>/hooks/` + `<prefix>/settings.json` (and a populated legacy project-scope `<project>/.claude/` likewise):
    - `hooks/` empty + no `hooks` block → `[OK] no hooks installed (clean)`.

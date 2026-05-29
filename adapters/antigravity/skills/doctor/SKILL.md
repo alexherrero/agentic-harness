@@ -36,7 +36,8 @@ For each expected file:
 3. `name:` field matches dirname — **only** for skills (sub-agents-as-skills and shared skills both carry `name:`). Antigravity workflows intentionally have no `name:` field; their name is implicit from the filename. Don't flag them for a missing `name:`.
 
 Then:
-4. `.harness/PLAN.md`, `.harness/progress.md`, `.harness/scripts/telemetry.sh` all exist.
+4. `.harness/PLAN.md` + `.harness/progress.md` exist (legacy project-scope), OR the vault resolver returns existing paths for both via `harness_memory.py vault-state-path`.
+4b. **Helper scripts (user-scope; v4.6.2+).** `telemetry.sh` lives at user scope from v4.6.2 (`<prefix>/scripts/telemetry.sh`) — it scans across multiple projects (`--all`), so per-project copies are no longer expected. Graceful-skip if absent.
 5. `AGENTS.md` exists at repo root.
 
 Report a pass/fail table. Exit here unless `--live` was passed.

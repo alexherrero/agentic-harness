@@ -29,7 +29,7 @@ Expected name sets:
 | Surface | Required | Optional (graceful-skip if absent) |
 |---|---|---|
 | `$CC_ROOT/commands/*.md` | `bugfix, plan, release, review, setup, work` | `recent-wiki-changes` (V4 #30 plan 2 / v4.4.0+) |
-| `$CC_ROOT/agents/*.md` | `adversarial-reviewer, adversarial-reviewer-cross, documenter, explorer` | `gemini-adapter-research, memory-idea-researcher` (harness); `adapt-evaluator, diataxis-evaluator, evaluator` (crickets) |
+| `$CC_ROOT/agents/*.md` | `adversarial-reviewer, adversarial-reviewer-cross, documenter, explorer` | `memory-idea-researcher` (harness); `adapt-evaluator, diataxis-evaluator, evaluator` (crickets) |
 | `$CC_ROOT/skills/*/` | `doctor, migrate-to-diataxis, wiki-author` (wiki-author since V4 #30 plan 2 / v4.4.0) | `design, diataxis-author, memory, ship-release` (harness compound); `dependabot-fixer, pii-scrubber` (crickets) |
 
 "Required" must be present and parse cleanly — missing or broken is FAIL. "Optional" is reported as `[OK] N present` or `[SKIP] not installed` — never FAIL. Extras outside both lists are reported as a soft `note:` row, not a failure.
@@ -41,9 +41,11 @@ For each expected file:
 
 Then:
 4. **State files (V4 #26-aware)**: Resolve via this two-step ladder:
-   - **Vault-resident (post-v4.1.0 default)** — shell out to `python3 <agentm-repo>/scripts/harness_memory.py vault-state-path PLAN.md` (and same for `progress.md` + `scripts/telemetry.sh`). The subcommand exits 0 + prints the path when resolved, exits 1 + empty output when no vault path is configured. If all three paths resolve and exist on disk, report `state files [OK] vault-resident — <vault-path>` and move on.
-   - **Legacy `.harness/`** — if the resolver returns nothing or the vault is unavailable, check `<project>/.harness/PLAN.md` + `<project>/.harness/progress.md` + `<project>/.harness/scripts/telemetry.sh`. Report `state files [OK] legacy .harness/` if all three present.
-   - FAIL only if neither path yields all three. An empty `.harness/` alongside a healthy vault resolution is the EXPECTED post-V4 #26 shape — not a fail.
+   - **Vault-resident (post-v4.1.0 default)** — shell out to `python3 <agentm-repo>/scripts/harness_memory.py vault-state-path PLAN.md` (and same for `progress.md`). The subcommand exits 0 + prints the path when resolved, exits 1 + empty output when no vault path is configured. If both paths resolve and exist on disk, report `state files [OK] vault-resident — <vault-path>` and move on.
+   - **Legacy `.harness/`** — if the resolver returns nothing or the vault is unavailable, check `<project>/.harness/PLAN.md` + `<project>/.harness/progress.md`. Report `state files [OK] legacy .harness/` if both present.
+   - FAIL only if neither path yields both files. An empty `.harness/` alongside a healthy vault resolution is the EXPECTED post-V4 #26 shape — not a fail.
+   - Note: `scripts/telemetry.sh` is no longer a vault-resident state file (v4.6.2+). It's a user-scope helper — see check 4b below.
+4b. **Helper scripts (user-scope; v4.6.2+).** Check `<prefix>/scripts/telemetry.sh` exists + is executable. Report `[OK] telemetry.sh installed` if present. Report `[WARN] telemetry.sh not installed — re-run install.sh` if absent (graceful, never FAIL). The script roots across multiple projects (`--all` scans `~/Antigravity`, `~/Claude`, `~/Projects`), so it lives at user scope, not per-project.
 5. `AGENTS.md` + `CLAUDE.md` exist at repo root.
 6. **Hook wiring (V4 #39 — a real check, not "absent block is fine").** Hooks install at user scope (`~/.claude/hooks/<name>/`) under `--scope user`; the installer MUST merge each hook's `settings-fragment-bash.json` into `<prefix>/settings.json` (V4 #39 task 1). Resolve the prefix (`$AGENTM_INSTALL_PREFIX` → `~/.claude`) and apply this truth table against `<prefix>/hooks/` + `<prefix>/settings.json` (apply the same logic to a populated legacy project-scope `<project>/.claude/`):
 
