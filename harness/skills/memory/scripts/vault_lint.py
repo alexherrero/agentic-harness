@@ -559,13 +559,20 @@ def _render_text(model: VaultModel, findings: list) -> str:
     for f in findings:
         out.append(f"  [{f.severity}] {f.check_id}  {f.entry_path}")
         out.append(f"      {f.message}")
-        out.append(f"      → {f.suggestion}")
+        out.append(f"      -> {f.suggestion}")
     if not findings:
         out.append("  clean — no findings.")
     return "\n".join(out) + "\n"
 
 
 def main(argv: Optional[list] = None) -> int:
+    # Windows stdout defaults to cp1252, which can't encode `→` etc. Force UTF-8
+    # (best-effort) so the CLI's stdout never UnicodeEncodeErrors. The report
+    # FILE is already written encoding="utf-8" — this is only for stdout.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+    except Exception:
+        pass
     p = argparse.ArgumentParser(prog="vault_lint", description="Read-only MemoryVault lint (V4 #33).")
     p.add_argument("--vault", default=None, help="vault root (else MEMORY_VAULT_PATH)")
     p.add_argument("--format", choices=("json", "text"), default="text")
@@ -591,8 +598,8 @@ def main(argv: Optional[list] = None) -> int:
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(report, encoding="utf-8")
         errs, warns, infos = _counts(findings)
-        print(f"vault-lint audit: {errs} error · {warns} warn · {infos} info "
-              f"across {len(model.entries)} entries → {out_path}")
+        print(f"vault-lint audit: {errs} error / {warns} warn / {infos} info "
+              f"across {len(model.entries)} entries -> {out_path}")
         return 0
 
     if args.format == "json":
