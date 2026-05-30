@@ -558,6 +558,109 @@ class TestEmbeddingSignal(unittest.TestCase):
         self.assertNotIn("## Semantically related (embedding signal", report)
 
 
+class TestApplyMode(unittest.TestCase):
+    def test_read_only_by_default(self):
+        with _Vault() as v:
+            a = _write(v, "Church/baptism.md",
+                       "Baptism covenant ordinance renewed by the sacrament.")
+            b = _write(v, "Church/confirmation.md",
+                       "Confirmation covenant ordinance conferring the sacrament.")
+            before = {p: p.read_bytes() for p in (a, b)}
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                nld.main(["--vault", str(v), "--min-score", "0.05"])
+            for p in (a, b):
+                self.assertEqual(p.read_bytes(), before[p])
+
+    def test_apply_writes_marked_related_and_backup(self):
+        with _Vault() as v:
+            a = _write(v, "Church/baptism.md",
+                       "Baptism covenant ordinance renewed by the sacrament.")
+            b = _write(v, "Church/confirmation.md",
+                       "Confirmation covenant ordinance conferring the sacrament.")
+            _write(v, "Tech/python.md", "Asyncio coroutines event loop scheduling.")
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = nld.main(["--vault", str(v), "--apply", "--min-score", "0.05"])
+            self.assertEqual(rc, 0)
+            self.assertEqual(len(list((v / "_meta").glob("notes-backup-*.tar.gz"))), 1,
+                             "no backup written before apply")
+            self.assertIn(nld._APPLY_MARKER, a.read_text(encoding="utf-8"))
+            self.assertIn("[[confirmation]]", a.read_text(encoding="utf-8"))
+            self.assertIn("[[baptism]]", b.read_text(encoding="utf-8"))
+            self.assertNotIn("## Related", (v / "Tech/python.md").read_text(encoding="utf-8"))
+
+    def test_apply_idempotent_and_no_double_section(self):
+        with _Vault() as v:
+            a = _write(v, "Church/baptism.md",
+                       "Baptism covenant ordinance renewed by the sacrament.")
+            _write(v, "Church/confirmation.md",
+                   "Confirmation covenant ordinance conferring the sacrament.")
+            _write(v, "Tech/python.md", "Asyncio coroutines event loop scheduling.")
+            for _ in range(3):
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    nld.main(["--vault", str(v), "--apply", "--min-score", "0.05"])
+            body = a.read_text(encoding="utf-8")
+            self.assertEqual(body.count("## Related"), 1, "duplicate Related sections")
+            self.assertEqual(body.count("[[confirmation]]"), 1, "duplicate link")
+
+    def test_apply_merges_into_existing_agent_section(self):
+        with _Vault() as v:
+            (v / "Church").mkdir(parents=True)
+            (v / "Church/baptism.md").write_text(
+                "Baptism covenant ordinance sacrament.\n\n## Related\n\n"
+                f"%% {nld._APPLY_MARKER}, 2026-05-29. Review / edit / remove freely. %%\n"
+                "- [[some-old-note]]\n", encoding="utf-8")
+            _write(v, "Church/confirmation.md",
+                   "Confirmation covenant ordinance conferring the sacrament.")
+            _write(v, "Tech/python.md", "Asyncio coroutines event loop scheduling.")
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                nld.main(["--vault", str(v), "--apply", "--min-score", "0.05"])
+            body = (v / "Church/baptism.md").read_text(encoding="utf-8")
+            self.assertEqual(body.count("## Related"), 1)
+            self.assertIn("[[some-old-note]]", body)
+            self.assertIn("[[confirmation]]", body)
+
+    def test_apply_skips_already_linked(self):
+        with _Vault() as v:
+            a = _write(v, "Church/baptism.md",
+                       "Baptism covenant ordinance sacrament. See [[confirmation]].")
+            _write(v, "Church/confirmation.md",
+                   "Confirmation covenant ordinance conferring the sacrament.")
+            _write(v, "Tech/python.md", "Asyncio coroutines event loop scheduling.")
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                nld.main(["--vault", str(v), "--apply", "--min-score", "0.05"])
+            self.assertNotIn("## Related", a.read_text(encoding="utf-8"))
+
+    def test_apply_no_feedback_loop(self):
+        # Injected `[[link]]` text must NOT feed back into the relatedness signal:
+        # a third unrelated note that merely shares words with the link TEXT must
+        # not start matching. Scoring body excludes the agent Related section.
+        with _Vault() as v:
+            _write(v, "Church/baptism.md",
+                   "Baptism covenant ordinance renewed by the sacrament.")
+            _write(v, "Church/confirmation.md",
+                   "Confirmation covenant ordinance conferring the sacrament.")
+            _write(v, "Tech/python.md", "Asyncio coroutines event loop scheduling.")
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                nld.main(["--vault", str(v), "--apply", "--min-score", "0.05"])
+            # Re-running finds nothing new (idempotent; no feedback-surfaced pairs).
+            notes = nld.build_corpus(v)
+            _n, sugg = nld.discover(v, min_score=0.05, top=40)
+            want = nld.plan_apply(notes, sugg)
+            self.assertEqual(sum(len(x) for x in want.values()), 0,
+                             f"feedback loop surfaced new links: {dict(want)}")
+
+    def test_split_related_preserves_human_body(self):
+        preserved, existing = nld._split_related("My note.\n\nLots of content.\n")
+        self.assertEqual(existing, set())
+        self.assertEqual(preserved, "My note.\n\nLots of content.")
+
+
 class TestUnitHelpers(unittest.TestCase):
     def test_tokenize_drops_stopwords_and_short(self):
         toks = nld._tokenize("The cat sat on a comfortable mat by the window")

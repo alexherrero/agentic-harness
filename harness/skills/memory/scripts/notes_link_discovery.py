@@ -32,6 +32,7 @@ CLI:
                                     [--top N] [--min-score X]
     python3 notes_link_discovery.py --report [--out PATH]   # operator-review md
     python3 notes_link_discovery.py --embeddings [--report] # + semantic signal
+    python3 notes_link_discovery.py --apply                 # opt-in: write links
 """
 from __future__ import annotations
 
@@ -42,6 +43,7 @@ import math
 import os
 import re
 import sys
+import tarfile
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date
@@ -264,6 +266,8 @@ def build_corpus(vault: Path) -> list:
                 continue
             parts = rel.split("/")
             folder = parts[0] if len(parts) > 1 else ""
+            # Links come from the FULL body (so a prior `--apply` Related section
+            # counts as already-linked for dedup) …
             links = set()
             for m in vault_lint._WIKILINK_RE.finditer(body):
                 stem, relpath = _resolve_link(m.group(1))
@@ -271,6 +275,11 @@ def build_corpus(vault: Path) -> list:
                     links.add(stem)
                 if relpath:
                     links.add(relpath)
+            # … but the SCORING body excludes our own marked `## Related` section.
+            # Otherwise injected `[[link]]` text would feed back into the TF-IDF /
+            # embedding signal and make linked notes look ever-more-similar — a
+            # loop that breaks `--apply` idempotency on clustered series.
+            scoring_body = _split_related(body)[0] if _APPLY_MARKER in body else body
             note = Note(
                 path=p,
                 rel=rel,
@@ -278,7 +287,7 @@ def build_corpus(vault: Path) -> list:
                 folder=folder,
                 created=(fm.get("created", "").strip() if fm else ""),
                 updated=(fm.get("updated", "").strip() if fm else ""),
-                body=body,
+                body=scoring_body,
                 links=links,
             )
             # Title terms count double — a shared title term is a stronger signal
@@ -766,6 +775,103 @@ def is_safe_report_path(out_path: Path, vault: Path, note_paths: set) -> bool:
 
 
 # -----------------------------------------------------------------------------
+# Apply mode (opt-in `--apply`) — write the suggested links INTO the notes
+# -----------------------------------------------------------------------------
+#
+# The default tool is read-only (DC-1). `--apply` is the explicit, operator-
+# directed escape hatch that actually writes the suggested `[[wikilinks]]` into a
+# marked `## Related` section at the end of each source note. It ALWAYS backs the
+# whole corpus up first (a tarball under `_meta/`), only ever touches a single
+# agent-marked section (idempotent: re-running MERGES into that one section, never
+# duplicates it), and only writes wikilink-safe targets the note doesn't already
+# link. The operator opted in; A3 is satisfied because the operator directed it.
+
+_RELATED_HEADING = "## Related"
+_APPLY_MARKER = "Suggested by Agent M link-discovery"
+_RELATED_LINK_RE = re.compile(r"^- (\[\[[^\]]+\]\])\s*$", re.MULTILINE)
+
+
+def _split_related(body: str) -> tuple:
+    """Split a note body into (preserved_body, existing_agent_links). The agent's
+    Related section is marked + lives at EOF; everything from the `## Related`
+    heading that introduces the first marker to EOF is the agent block. A note
+    with no agent block returns (body, empty-set) so a human-authored `## Related`
+    elsewhere is never disturbed."""
+    mi = body.find(_APPLY_MARKER)
+    if mi == -1:
+        return body.rstrip("\n"), set()
+    cut = body.rfind(_RELATED_HEADING, 0, mi)
+    if cut == -1:
+        cut = mi
+    preserved = body[:cut].rstrip("\n")
+    existing = set(_RELATED_LINK_RE.findall(body[cut:]))
+    return preserved, existing
+
+
+def plan_apply(notes: list, suggestions: list) -> dict:
+    """Map src_rel -> set of paste-ready link strings to ensure present, for both
+    directions of each suggestion. Skips wikilink-unsafe targets (bracketed names)
+    and any link the source note already has (the operator's or a prior apply's)."""
+    by_rel = {n.rel: n for n in notes}
+    stem_counts = defaultdict(int)
+    for n in notes:
+        stem_counts[n.path.stem] += 1
+    ambiguous = {s for s, c in stem_counts.items() if c > 1}
+    want = defaultdict(set)
+    for s in suggestions:
+        for src_rel, tgt_rel in ((s.a_rel, s.b_rel), (s.b_rel, s.a_rel)):
+            if src_rel not in by_rel:
+                continue
+            link = _paste_link(tgt_rel, ambiguous_stems=ambiguous)
+            if not link.startswith("[["):
+                continue  # unsafe name — can't be a valid wikilink target
+            src = by_rel[src_rel]
+            if _stem(tgt_rel) in src.links or tgt_rel in src.links:
+                continue  # already linked by the operator
+            want[src_rel].add(link)
+    return dict(want)
+
+
+def backup_corpus(notes: list, vault: Path, *, today: str) -> Path:
+    """Tar.gz every personal note (text) to `<vault>/_meta/notes-backup-<date>.tar.gz`
+    so an apply is fully reversible. Returns the backup path."""
+    root = vault_lint._obsidian_root(Path(vault))
+    path = Path(vault) / "_meta" / f"notes-backup-{today}.tar.gz"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(path, "w:gz") as tar:
+        for n in notes:
+            tar.add(n.path, arcname=n.path.relative_to(root).as_posix())
+    return path
+
+
+def apply_links(notes: list, want: dict, *, today: str) -> tuple:
+    """Write/merge the planned links into each note's single agent `## Related`
+    section. Idempotent — merges with any existing agent links, never duplicates
+    the section. Returns (notes_modified, links_added)."""
+    by_rel = {n.rel: n for n in notes}
+    modified = added = 0
+    for rel, newlinks in want.items():
+        if not newlinks or rel not in by_rel:
+            continue
+        p = by_rel[rel].path
+        body = p.read_text(encoding="utf-8")
+        preserved, existing = _split_related(body)
+        merged = existing | set(newlinks)
+        if merged == existing:
+            continue  # nothing new to add
+        section = (
+            preserved + "\n\n" + _RELATED_HEADING + "\n\n"
+            + f"%% {_APPLY_MARKER}, {today}. Review / edit / remove freely. %%\n"
+            + "\n".join(f"- {lk}" for lk in sorted(merged)) + "\n"
+        )
+        if section != body:
+            p.write_text(section, encoding="utf-8")
+            modified += 1
+            added += len(merged) - len(existing)
+    return modified, added
+
+
+# -----------------------------------------------------------------------------
 # CLI
 # -----------------------------------------------------------------------------
 
@@ -811,6 +917,10 @@ def main(argv: Optional[list] = None) -> int:
                    help="embedding mode (with --embeddings): local (default) or stub")
     p.add_argument("--embed-min-score", type=float, default=_DEFAULT_EMBED_MIN_SCORE,
                    help="cosine threshold for the embedding signal")
+    p.add_argument("--apply", action="store_true",
+                   help="WRITE the suggested links into the notes (opt-in; default "
+                        "is read-only). Backs the corpus up first, then merges a "
+                        "marked `## Related` section into each source note.")
     args = p.parse_args(argv)
     try:
         vault = vault_lint._resolve_vault(args.vault)
@@ -834,6 +944,30 @@ def main(argv: Optional[list] = None) -> int:
             print("notes_link_discovery: embedding signal unavailable "
                   "(sentence-transformers not installed) — TF-IDF only.",
                   file=sys.stderr)
+
+    if args.apply:
+        today = date.today().isoformat()
+        combined = list(suggestions)
+        if embed_suggestions:
+            tf_keys = {_pair_key(s) for s in suggestions}
+            combined += [s for s in embed_suggestions if _pair_key(s) not in tf_keys]
+        want = plan_apply(notes, combined)
+        if not want:
+            print("notes-link-discovery apply: no new links to write "
+                  "(all suggestions already linked or unsafe-named).")
+            return 0
+        try:
+            backup = backup_corpus(notes, vault, today=today)
+        except OSError as e:
+            print(f"notes_link_discovery: refusing to apply — backup failed: {e}",
+                  file=sys.stderr)
+            return 2
+        modified, added = apply_links(notes, want, today=today)
+        print(f"notes-link-discovery apply: wrote {added} link(s) into {modified} "
+              f"note(s). Backup: {backup}")
+        print(f"  revert with:  tar xzf '{backup}' -C "
+              f"'{vault_lint._obsidian_root(vault)}'")
+        return 0
 
     if args.report:
         today = date.today().isoformat()
