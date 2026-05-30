@@ -11,6 +11,7 @@
 - [Use auto-context in phases](Use-Auto-Context-In-Harness-Phases)
 - [Use per-project install](Use-Per-Project-Install)
 - [Audit the vault](Audit-The-Vault)
+- [Find missing note links](Find-Missing-Note-Links)
 
 ### 📖 Reference
 - [Installer CLI](Installer-CLI)
@@ -20,6 +21,7 @@
 - [CI gates](CI-Gates)
 - [Repo layout](Repo-Layout)
 - [Vault lint checks](Vault-Lint-Checks)
+- [Note relatedness signals](Note-Relatedness-Signals)
 - [Compatibility](Compatibility)
 - [Completed features](Completed-Features)
 

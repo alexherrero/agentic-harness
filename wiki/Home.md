@@ -77,6 +77,7 @@ Should print your always-load entries within the 4000-token budget. Empty = vaul
 - [How to use auto-context in harness phases](Use-Auto-Context-In-Harness-Phases) — tune MemoryVault recall budgets, save modes, and confidence thresholds for each phase.
 - [How to use per-project install](Use-Per-Project-Install) — when to deliberately keep `--scope project` instead of migrating to user scope (CI runners; shared dev hosts; multi-developer dotfiles).
 - [How to audit the MemoryVault](Audit-The-Vault) — run the read-only vault lint, read the report under `_meta/`, and apply suggested fixes by hand.
+- [How to find missing note links](Find-Missing-Note-Links) — run the read-only personal-notes link-discovery audit and add the suggested `[[wikilinks]]` by hand.
 
 ## 📖 Looking up a detail?
 
@@ -87,6 +88,7 @@ Should print your always-load entries within the 4000-token budget. Empty = vaul
 - [CI gates reference](CI-Gates) — what each CI workflow proves and the script behind it.
 - [Repo layout reference](Repo-Layout) — top-level directory map and four-adapter parity table.
 - [Vault lint checks reference](Vault-Lint-Checks) — the 9 read-only `vault_lint.py` checks: id / severity / what each checks / suggested-fix shape.
+- [Note relatedness signals reference](Note-Relatedness-Signals) — the two signals (TF-IDF + embedding) + thresholds `notes_link_discovery.py` scores on.
 - [Compatibility](Compatibility) — supported hosts (Claude Code, Antigravity) + OS matrix + adapter contract.
 - [Completed features](Completed-Features) — reverse-chronological log of shipped work.
 
