@@ -13,7 +13,7 @@ The signals `notes_link_discovery.py` scores when it looks for related-but-unlin
 | How do I see suggestions? | `python3 harness/skills/memory/scripts/notes_link_discovery.py --format text` (or `--format json`). |
 | Which notes are in the corpus? | Personal notes only — the Obsidian vault **excluding `AgentMemory/`, `.obsidian/`, `.trash`, `.git`** (DC-2). |
 | What are the two signals? | **TF-IDF** content overlap (lexical) + **embedding** cosine (semantic, opt-in via `--embeddings`). Folder + date proximity are weak context. |
-| Does the audit ever edit a note? | No. Read-only / surface-only (DC-1). It reports + suggests; you apply the `[[links]]` by hand. |
+| Does the audit ever edit a note? | Not by default — read-only / surface-only (DC-1). The opt-in `--apply` flag is the one exception: it writes the safe suggestions into a marked `## Related` section, backup-first + idempotent (you directed it; A3 satisfied). |
 | Where do outputs live? | Report → `<vault>/_meta/notes-links-<date>.md`; embedding cache → `<vault>/_meta/notes-embeddings.json`. Both under the agent-controlled vault, never beside a personal note, never the AgentMemory `vec-index.db`. |
 | How do I run the report? | See [Find missing note links](../how-to/Find-Missing-Note-Links.md). |
 | Related pages | [Find missing note links](../how-to/Find-Missing-Note-Links.md) |

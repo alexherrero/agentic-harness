@@ -36,7 +36,15 @@ This audit is the complement to [Audit the vault](Audit-The-Vault) — that one 
 
 4. **Read the report.** Open `<vault>/AgentMemory/_meta/notes-links-<YYYY-MM-DD>.md`. It leads with a summary, then a **Shared-vocabulary links (TF-IDF)** section — each entry carries the two notes (folder/title), the top shared distinctive terms (the *why*), the score, and a ready-to-paste `[[wikilink]]` for both directions; pairs the embedding signal also agrees on are flagged `✓ also semantically related`. When `--embeddings` ran, a second **Semantically related (embedding signal — TF-IDF missed these)** section lists the pairs found only by meaning. Names containing `[`/`]`/`|`/`#` (e.g. bracketed-date meeting notes) can't be valid `[[wikilinks]]`, so those show a "link via Obsidian's `[[` picker" hint instead of a broken link.
 
-5. **Add the links by hand.** Open the suggested notes in Obsidian and paste the `[[wikilink]]` where it reads naturally. The audit applies nothing — every suggestion is advisory and operator-gated (A3 — these are **your** notes). Re-run step 1 to confirm an applied pair drops off the list.
+5. **Add the links by hand.** Open the suggested notes in Obsidian and paste the `[[wikilink]]` where it reads naturally. The audit applies nothing by default — every suggestion is advisory and operator-gated (A3 — these are **your** notes). Re-run step 1 to confirm an applied pair drops off the list.
+
+6. **Or let it apply for you (opt-in).** If you'd rather not paste by hand, pass `--apply` to write the safe suggestions into a marked `## Related` section at the end of each source note:
+
+   ```bash
+   python3 harness/skills/memory/scripts/notes_link_discovery.py --apply --embeddings
+   ```
+
+   It **backs the whole corpus up first** (`<vault>/_meta/notes-backup-<date>.tar.gz`; it refuses to apply if the backup fails) and prints the exact `tar xzf …` command to revert. It is **idempotent** — re-running merges into the one marked section, never duplicates it — and skips wikilink-unsafe names (bracketed meeting notes) plus links you already have. Review the result in Obsidian; remove any you don't want. This is the only mode that writes to a personal note, and only because you asked it to.
 
 For what each relatedness signal means and how the thresholds are tuned, see [Note relatedness signals](Note-Relatedness-Signals).
 

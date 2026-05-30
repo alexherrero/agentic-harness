@@ -5,6 +5,25 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v4.11.0] — 2026-05-30 — Opt-in `--apply` for personal-notes link-discovery (V4 #43 follow-up)
+
+**MINOR.** v4.10.0's link-discovery audit was strictly read-only — it surfaced suggestions and left the operator to paste `[[wikilinks]]` by hand. This adds an explicit, opt-in `--apply` mode that writes the safe suggestions in for you, used to dogfood the operator's own ~390-note vault (143 links across 64 notes, plus a one-time rename of 25 bracketed-date filenames so those pairs became linkable). The tool stays read-only by default; `--apply` is the operator-directed escape hatch (A3 is satisfied because the operator asks for it). Single-repo release; crickets untouched.
+
+### Added
+
+- **`--apply` mode (`notes_link_discovery.py`).** Writes the suggested links into a marked `## Related` section at the end of each source note. **Backs the whole corpus up first** to `<vault>/_meta/notes-backup-<date>.tar.gz` and refuses to apply if the backup fails; prints the `tar xzf …` revert command. **Idempotent** — re-running merges into the one marked section, never duplicates it. Only writes wikilink-safe targets (skips bracketed/`|`/`#`/`^` names) the note doesn't already link, in both directions. `plan_apply` / `apply_links` / `backup_corpus` / `_split_related` are the pieces; +9 tests.
+
+### Internal
+
+- **Feedback-loop fix.** The TF-IDF / embedding scoring body now excludes the agent's own `## Related` section, so injected `[[link]]` text can't inflate similarity and surface ever-more pairs on the next run — without this, `--apply` was not idempotent on clustered note series (`note.links` is still parsed from the full body, so dedup still sees applied links).
+- **Adversarial review caught destructive data loss.** `_split_related` originally detected the agent block by a bare substring search for the marker, so a note that merely *mentioned* the tool in prose — or carried a human-authored `## Related` — had its prose truncated and the human section clobbered on `--apply`. Now the agent block is anchored to its actual `%% … %%` Obsidian-comment line; a prose mention or a human `## Related` is preserved and the new section appended below. Regression-tested.
+- **+9 tests** (`scripts/test_notes_link_discovery.py`): read-only-by-default, backup-before-write, idempotent/no-double-section, merge-into-existing, skip-already-linked, no-feedback-loop, prose-mention-not-clobbered, split-related-ignores-prose-marker. 426 → 435.
+
+### Cross-references
+
+- [agentm v4.10.0](https://github.com/alexherrero/agentm/releases/tag/v4.10.0) — the read-only audit this adds an opt-in writer to.
+- ROADMAP-V4 item #43.
+
 ## [v4.10.0] — 2026-05-30 — Personal-notes link-discovery audit (V4 #43)
 
 **MINOR.** The read-only complement to v4.9.0's vault lint. Where `vault_lint.py` checks the agent-shaped `AgentMemory/` entries and **skips** the operator's free-form personal notes, this audits *those skipped notes* for **missing connections between them** — "these two notes look related but aren't `[[linked]]`." The personal-notes corpus is richly written but essentially ungraphed (a handful of ~390 notes carry tags, one has a wikilink, frontmatter is just `title`/`created`/`updated`), so relatedness is content-based. It is strictly **read-only** (DC-1) and strictly **personal↔personal** (DC-2) — a personal note is never link-suggested to an `AgentMemory/` entry, enforced by excluding `AgentMemory/` from the corpus as both source and target. The operator applies suggestions by hand (A3 — these are *his* notes). Single-repo release; crickets untouched.
