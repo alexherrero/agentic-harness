@@ -238,6 +238,56 @@ class TestCalibration(unittest.TestCase):
         save._validate_group("projects/agent-m-v4/decisions")  # must not raise
 
 
+class TestAuditReport(unittest.TestCase):
+    def _model(self, n_entries=3):
+        m = vl.VaultModel(vault=Path("/x"))
+        m.entries = [object()] * n_entries
+        return m
+
+    def test_groups_identical_findings(self):
+        findings = [
+            vl.Finding("schema-drift", "warn", "a.md",
+                       "unknown frontmatter key `domain` (not in the locked schema)", "remove `domain`"),
+            vl.Finding("schema-drift", "warn", "b.md",
+                       "unknown frontmatter key `domain` (not in the locked schema)", "remove `domain`"),
+            vl.Finding("wikilink-resolution", "error", "c.md",
+                       "wikilink `[[ghost]]` doesn't resolve to any file in the vault", "fix it"),
+        ]
+        r = vl.build_report(self._model(), findings, today="2026-05-29")
+        self.assertIn("# MemoryVault lint audit — 2026-05-29", r)
+        self.assertIn("**Summary:** 1 error · 2 warn · 0 info", r)
+        self.assertIn("## Errors (1)", r)
+        self.assertIn("## Warnings (2)", r)
+        self.assertIn("**2×**", r)            # the two domain findings collapsed
+        self.assertIn("`a.md`", r)            # entry list present
+        self.assertIn("[[ghost]]", r)         # unique finding shown individually
+
+    def test_clean_report(self):
+        r = vl.build_report(self._model(), [], today="2026-05-29")
+        self.assertIn("Clean — no findings", r)
+
+    def test_audit_writes_only_the_report(self):
+        with _Vault() as v:
+            _write(v, "personal-private/_always-load/a.md", _clean("a"))
+            before = {p: p.read_bytes() for p in v.rglob("*.md")}
+            with tempfile.TemporaryDirectory() as outdir:
+                out = Path(outdir) / "report.md"
+                rc = vl.main(["--audit", "--vault", str(v), "--out", str(out)])
+                self.assertEqual(rc, 0)
+                self.assertTrue(out.is_file())
+            # The vault's entries are byte-for-byte unchanged (read-only).
+            after = {p: p.read_bytes() for p in v.rglob("*.md")}
+            self.assertEqual(before, after)
+
+    def test_audit_default_path_under_meta(self):
+        with _Vault() as v:
+            _write(v, "personal-private/_always-load/a.md", _clean("a"))
+            rc = vl.main(["--audit", "--vault", str(v)])
+            self.assertEqual(rc, 0)
+            reports = list((v / "_meta").glob("vault-lint-*.md"))
+            self.assertEqual(len(reports), 1)
+
+
 class TestSchemaPin(unittest.TestCase):
     """DC-2: the lint reuses save.py's schema; pin save's builder to the constant."""
 

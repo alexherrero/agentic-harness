@@ -459,6 +459,79 @@ def lint_vault(vault: Path, scope: str = "all") -> tuple[VaultModel, list]:
 
 
 # -----------------------------------------------------------------------------
+# Audit report (task 2) — group findings into a skimmable operator-review doc
+# -----------------------------------------------------------------------------
+
+_SEV_ORDER = ("error", "warn", "info")
+
+
+def _counts(findings: list) -> tuple[int, int, int]:
+    return (
+        sum(1 for f in findings if f.severity == "error"),
+        sum(1 for f in findings if f.severity == "warn"),
+        sum(1 for f in findings if f.severity == "info"),
+    )
+
+
+def build_report(model: VaultModel, findings: list, *, today: str) -> str:
+    """Render an operator-review markdown audit report. Findings are grouped by
+    severity → check → identical-message, so high-count patterns (e.g. an
+    unknown `domain` key across 30 entries) collapse to one line + an entry
+    list rather than 30 repeated lines. Suggestions are advisory — nothing is
+    applied."""
+    errs, warns, infos = _counts(findings)
+    out = [
+        f"# MemoryVault lint audit — {today}",
+        "",
+        f"**Summary:** {errs} error · {warns} warn · {infos} info across "
+        f"{len(model.entries)} entries ({model.skipped} non-entry file(s) skipped).",
+        "",
+        "> Read-only audit. Each finding has a suggested fix — apply at your "
+        "discretion; nothing here was changed automatically.",
+        "",
+    ]
+    if not findings:
+        out.append("Clean — no findings. 🎉")
+        return "\n".join(out) + "\n"
+
+    sev_label = {"error": "Errors", "warn": "Warnings", "info": "Info"}
+    for sev in _SEV_ORDER:
+        sev_findings = [f for f in findings if f.severity == sev]
+        if not sev_findings:
+            continue
+        out.append(f"## {sev_label[sev]} ({len(sev_findings)})")
+        out.append("")
+        # Group by check_id (stable order of first appearance).
+        checks: dict = {}
+        for f in sev_findings:
+            checks.setdefault(f.check_id, []).append(f)
+        for check_id, items in checks.items():
+            out.append(f"### `{check_id}` ({len(items)})")
+            # Sub-group by identical message → collapse repeats.
+            by_msg: dict = {}
+            for f in items:
+                by_msg.setdefault(f.message, []).append(f)
+            for msg, group in by_msg.items():
+                if len(group) == 1:
+                    g = group[0]
+                    out.append(f"- `{g.entry_path}` — {g.message}")
+                    out.append(f"  → {g.suggestion}")
+                else:
+                    out.append(f"- **{len(group)}×** {msg}")
+                    out.append(f"  → {group[0].suggestion}")
+                    paths = [g.entry_path for g in group]
+                    shown = ", ".join(f"`{p}`" for p in paths[:8])
+                    more = f" (+{len(paths) - 8} more)" if len(paths) > 8 else ""
+                    out.append(f"  Entries: {shown}{more}")
+            out.append("")
+    return "\n".join(out) + "\n"
+
+
+def default_report_path(vault: Path, today: str) -> Path:
+    return vault / "_meta" / f"vault-lint-{today}.md"
+
+
+# -----------------------------------------------------------------------------
 # CLI
 # -----------------------------------------------------------------------------
 
@@ -494,6 +567,9 @@ def main(argv: Optional[list] = None) -> int:
     p.add_argument("--vault", default=None, help="vault root (else MEMORY_VAULT_PATH)")
     p.add_argument("--format", choices=("json", "text"), default="text")
     p.add_argument("--scope", choices=tuple(_SCOPE_DIRS), default="all")
+    p.add_argument("--audit", action="store_true",
+                   help="write a grouped operator-review report (to --out or <vault>/_meta/vault-lint-<date>.md)")
+    p.add_argument("--out", default=None, help="audit report output path (with --audit)")
     args = p.parse_args(argv)
     try:
         vault = _resolve_vault(args.vault)
@@ -504,6 +580,18 @@ def main(argv: Optional[list] = None) -> int:
         print(f"vault_lint: vault not found: {vault}", file=sys.stderr)
         return 2
     model, findings = lint_vault(vault, args.scope)
+
+    if args.audit:
+        today = date.today().isoformat()
+        report = build_report(model, findings, today=today)
+        out_path = Path(args.out).expanduser() if args.out else default_report_path(vault, today)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(report, encoding="utf-8")
+        errs, warns, infos = _counts(findings)
+        print(f"vault-lint audit: {errs} error · {warns} warn · {infos} info "
+              f"across {len(model.entries)} entries → {out_path}")
+        return 0
+
     if args.format == "json":
         print(json.dumps({
             "entries": len(model.entries),
