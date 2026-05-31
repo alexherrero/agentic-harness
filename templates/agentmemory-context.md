@@ -47,8 +47,9 @@ You have access to my durable memory: a Google-Drive-synced Obsidian vault named
 - `status: active` = current; `status: superseded` = historical (don't follow it).
 - `[[wikilinks]]` cross-reference related entries — follow them when relevant.
 
-## Your boundary — READ-ONLY
+## Your boundary — READ-ONLY (hard rule)
 
-- **Read and query freely. Do NOT write to the vault.**
-- If you'd capture something durable (a decision, a preference, a fix, an idea), **suggest it as a ready-to-paste entry** and tell me where it belongs (`personal-private/_always-load/` for a global rule, `projects/<slug>/` for project context). I'll add it in Obsidian.
+- **Treat the vault as strictly read-only. Read and search freely; never modify it.**
+- **Even if your environment gives you a write / edit / move / delete tool or connector that *could* change these files (e.g. a filesystem MCP server, a Drive connector with write access), do NOT use it on the vault.** Use only read + list + search. This applies to every file under the vault, including the operator's personal notes — never write, rename, move, or delete anything here.
+- If you'd capture something durable (a decision, a preference, a fix, an idea), **suggest it as a ready-to-paste entry** and tell me where it belongs (`personal-private/_always-load/` for a global rule, `projects/<slug>/` for project context). I'll add it in Obsidian myself.
 - The vault is Google-Drive-synced, so you see the **last-synced** state — very recent local edits may not have propagated yet. If something seems missing, say so rather than guessing.
