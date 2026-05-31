@@ -13,6 +13,7 @@
 - [Audit the vault](Audit-The-Vault)
 - [Find missing note links](Find-Missing-Note-Links)
 - [Use AgentMemory in any agent](Use-AgentMemory-In-Any-Agent)
+- [Run on Claude Code web with Drive vault](Run-The-Harness-On-Claude-Code-Web)
 
 ### 📖 Reference
 - [Installer CLI](Installer-CLI)

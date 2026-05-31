@@ -79,6 +79,7 @@ Should print your always-load entries within the 4000-token budget. Empty = vaul
 - [How to audit the MemoryVault](Audit-The-Vault) — run the read-only vault lint, read the report under `_meta/`, and apply suggested fixes by hand.
 - [How to find missing note links](Find-Missing-Note-Links) — run the read-only personal-notes link-discovery audit and add the suggested `[[wikilinks]]` by hand.
 - [How to use AgentMemory in any agent](Use-AgentMemory-In-Any-Agent) — configure any surface (Claude.ai · Gemini · ChatGPT · Antigravity) to read the vault natively (read-only) by pasting the one context payload.
+- [How to run the harness on Claude Code web](Run-The-Harness-On-Claude-Code-Web) — boot an ephemeral web container as a full workstation with read/write Drive-vault sync via rclone.
 
 ## 📖 Looking up a detail?
 
