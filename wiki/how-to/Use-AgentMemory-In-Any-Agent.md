@@ -14,11 +14,13 @@ Prereq for the Google-Drive surfaces: the vault is synced to Google Drive, and y
 
 | Surface | Status | How it reads the vault |
 |---|---|---|
-| Claude Code | ✅ built-in | SessionStart / UserPromptSubmit hooks — no paste needed |
-| Claude.ai | ✅ validated | Google Drive connector (search) + **the context payload** |
-| Gemini | ⬜ pending dogfood | custom Gem + native Drive access + **the context payload** |
-| ChatGPT | deferred → v1.x | GDrive connector + **the context payload** |
-| Antigravity | deferred → DC-7 | installed `agentmemory-context` rule |
+| Claude Code | ✅ built-in | local filesystem + SessionStart hooks — no paste needed |
+| Claude.ai | ✅ validated | Google Drive connector (*search*) + **the context payload** |
+| Claude Desktop | ⬜ next | local **filesystem MCP server** → full navigation (or the Drive connector) + **the context payload** |
+| Antigravity | ⬜ (DC-7) | local filesystem → installed `agentmemory-context` rule |
+| Gemini · ChatGPT · Codex | deferred → post-FRIDAY | no live file/search access to the vault yet |
+
+**v1 criterion:** a surface only qualifies if it has **live file-or-search access** to the vault — a filesystem agent (Claude Code, Claude Desktop via a filesystem MCP server, Antigravity) or the Drive-search connector (Claude.ai). Chat-only bots that can't reach the vault are deferred.
 
 ## Claude.ai
 
@@ -28,28 +30,31 @@ Prereq for the Google-Drive surfaces: the vault is synced to Google Drive, and y
 
 *More reliable recall:* search-at-query-time depends on Claude choosing to search. To ground it, create a **Claude Project**, put **the context payload** in the Project instructions, and add the `personal-private/_always-load/` entries to the Project's knowledge.
 
-## Gemini
+## Claude Desktop
 
-1. **Create a custom Gem.** Gem manager → New Gem; name it (e.g. *AgentMemory*).
-2. **Paste [the context payload](https://github.com/alexherrero/agentm/blob/main/templates/agentmemory-context.md#L19)** into the Gem's **Instructions**.
-3. **Confirm Drive access** — Gemini reads Drive natively for the signed-in account; make sure that's the vault-owning account.
-4. **Dogfood** with the Gem selected (see below).
+Best path: give Claude Desktop a **local filesystem MCP server** pointed at the vault — it then navigates the vault like Claude Code (full traversal, no Drive dependency).
 
-## ChatGPT *(deferred to v1.x)*
+1. **Add a filesystem MCP server.** In Claude Desktop's connector/MCP settings, add a standard **filesystem** server scoped to your vault directory (`$MEMORY_VAULT_PATH` / the `AgentMemory/` folder).
+2. **Paste [the context payload](https://github.com/alexherrero/agentm/blob/main/templates/agentmemory-context.md#L19)** into a Claude **Project's** instructions (or the desktop custom instructions).
+3. **Dogfood** (see below).
 
-Same shape — enable ChatGPT's Google Drive connector and paste **the context payload** into Custom Instructions or a Project. Tracked as a follow-up; not part of read-only v1.
+*Alternative:* skip the MCP server and use the **Google Drive connector** exactly like Claude.ai above (search-based; same payload).
 
-## Antigravity *(deferred — DC-7)*
+## Antigravity *(in v1 — DC-7)*
 
-Antigravity loads **the context payload** as an installed `agentmemory-context` rule (no manual paste). The installer wiring + its repo home are a later task.
+Antigravity is a local filesystem agent; it loads **the context payload** as an installed `agentmemory-context` rule (no manual paste). The installer wiring + the rule's repo home are a later task in this plan.
+
+## Deferred surfaces *(post-FRIDAY — #28)*
+
+**Gemini, ChatGPT, and Codex are not in v1.** Gemini + ChatGPT are chat-only bots with **no live file/search access** to the vault — a plain Gemini chat confirmed it *"can't access or browse your live Google Drive files"* — so the read model can't work yet; revisit when they gain agentic Drive/file access. Codex is deferred completely until FRIDAY lands. The same **context payload** will be reusable for whichever gains access.
 
 ## The dogfood (any surface)
 
-Open a **fresh** chat/session (Gem selected, for Gemini) and ask — with no priming:
+Open a **fresh** chat/session and ask — with no priming:
 
 > what's our commit-message convention?
 
-**Pass:** it reads the vault (you'll see a Drive search / cited file) and answers from `personal-private/_always-load/` — *"no `Co-Authored-By` trailer"* (and Conventional Commits) — not from general knowledge. **Fail:** a generic answer or "can't see the folder" → confirm you're on the vault-owning Google account (and for Claude.ai, try the Project approach above).
+**Pass:** it reaches the vault (a Drive *search* on Claude.ai; a filesystem *read* on Claude Desktop / Antigravity) and answers from `personal-private/_always-load/` — *"no `Co-Authored-By` trailer"* (and Conventional Commits) — not from general knowledge. **Fail:** a generic answer or "can't see the vault" → on Claude.ai confirm you're on the vault-owning Google account (and try the Project approach above); on Claude Desktop confirm the filesystem MCP server's vault path.
 
 ## Related
 
