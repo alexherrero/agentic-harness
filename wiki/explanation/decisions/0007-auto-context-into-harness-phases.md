@@ -141,6 +141,14 @@ One **budget revision supersedes a sliver of Q1's defaults table for this phase*
 
 Commits: `da63046` (resolver + CLI), `fbb5b89` (primitive wiring), `6090fc4` (budget + project-first tuning). This amendment was itself authored by the documenter sub-agent through the new resolver — a dogfood of the feature it documents.
 
+## Amendment 2026-05-31
+
+**Re-audit trigger for assumption #2 fired.** Load-bearing assumption #2 above held that `MEMORY_VAULT_PATH` env reliably identifies vault location across hosts. It does not for **SessionStart hooks on user-scope installs**: Claude Code does not inject `MEMORY_VAULT_PATH` into the hook environment (it is not in shell profiles or `settings.json` env either), so a hook that reads only the env var silently exits 0 on every real session boot.
+
+This bit twice. `memory-recall-session-start` hit it first and resolved it by porting a `_resolve_vault_path()` fallback (`env → .agentm-config.json::vault_path → none`). `conflict-merger-session-start` then shipped reading only the env var and was functionally inert at boot until the same fallback was ported in (`64acaa6`); its V4 #26 cross-agent / cross-device conflict detection was structurally installed and wired but never ran. The recurrence across two hooks promotes this from an incident to a **convention**: every vault-aware SessionStart hook (and its pwsh twin) resolves the vault via `env → .agentm-config.json::vault_path → none`, never the env var alone. Regression coverage: `scripts/test_conflict_merger_hook.py` drives the bash hook with `MEMORY_VAULT_PATH` unset + a fixture config and asserts the fallback path resolves.
+
+This does not invalidate assumption #2 for the six lifecycle phases (the harness dispatcher runs in the foreground session where the env var *is* present) — it narrows it: the env-var assumption holds for in-session dispatcher calls but **not** for hook environments, which must always carry the config fallback.
+
 ## Related
 
 - [ROADMAP item #8](https://github.com/alexherrero/agentm/blob/main/.harness/ROADMAP.md) — the roadmap entry that triggered this work.
