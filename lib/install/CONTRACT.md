@@ -4,7 +4,7 @@ This directory holds install primitives shared **byte-identically** between `age
 
 ## Why a shared lib
 
-Both `agentm` and `crickets` are installers — they read content from their own source tree and copy it into a target project under host-specific paths (`.claude/`, `.agents/`, `.gemini/`). The mechanics of "copy a managed file with update-mode overwrite semantics" or "wipe-and-recreate a managed directory on `--update`" are identical between the two. Duplicating that logic invites drift; sharing via copy-the-lib avoids it without coupling the two repos' release cadence.
+Both `agentm` and `crickets` are installers — they read content from their own source tree and copy it into a target project under host-specific paths (`.claude/`, `.agent/`, `.gemini/`). The mechanics of "copy a managed file with update-mode overwrite semantics" or "wipe-and-recreate a managed directory on `--update`" are identical between the two. Duplicating that logic invites drift; sharing via copy-the-lib avoids it without coupling the two repos' release cadence.
 
 ## Contents
 
