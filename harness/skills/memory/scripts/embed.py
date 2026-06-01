@@ -60,7 +60,7 @@ _DEFAULT_LOCAL_MODEL = "BAAI/bge-large-en-v1.5"
 #      ~/.cache/torch/sentence_transformers/).
 #   3. The cache is durable across MemoryVault sessions + survives toolkit
 #      reinstalls (the toolkit's installer never touches user home dirs
-#      outside .claude/ and .agent/).
+#      outside .claude/ and .agents/).
 # Set lazily inside _embed_local() so importing this module doesn't touch
 # os.environ for callers that only use stub mode.
 _LOCAL_CACHE_DIR = Path(

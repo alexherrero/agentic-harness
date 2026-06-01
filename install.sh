@@ -519,9 +519,11 @@ MANAGED_PARENTS=(
   .claude/hooks      # V4 #36: compound hooks (memory-*, evidence-tracker)
                      # imported from crickets land here via the manifest
                      # dispatcher.
-  .agent/rules
-  .agent/workflows
-  .agent/skills
+  .agent/rules       # legacy (pre-V4 #22) — wiped on --update; migrated to .agents/
+  .agent/workflows   # legacy (pre-V4 #22) — wiped on --update; migrated to .agents/
+  .agent/skills      # legacy (pre-V4 #22) — wiped on --update; migrated to .agents/
+  .agents/rules
+  .agents/workflows
   .agents/skills
   .codex/agents      # legacy — wiped on first --update past v0.10.0
   .gemini/commands
@@ -534,6 +536,7 @@ MANAGED_PARENTS=(
 # subdirs. Keeps the tree clean after host removals (e.g. .codex/).
 EMPTY_PARENT_CANDIDATES=(
   .codex
+  .agent
   .agents
 )
 
@@ -583,28 +586,36 @@ for d in "$HARNESS_ROOT"/adapters/claude-code/skills/*/; do
   cp_managed_dir "$d" ".claude/skills/$(basename "$d")"
 done
 
-# .agent/ — Antigravity config (full-parity adapter). Copies workflows,
-# skills, and the always-on rules file into the target's .agent/ tree.
-mkdir -p .agent/rules .agent/workflows .agent/skills
+# .agents/ — Antigravity config (full-parity adapter). Copies workflows,
+# skills, and the always-on rules file into the target's .agents/ tree.
+# V4 #22: migrated .agent/ (singular) → .agents/ (plural) — the Antigravity 2.0
+# default per the official rules-workflows docs ("Antigravity now defaults to
+# .agents/rules"). Legacy .agent/ is wiped on --update (see MANAGED_PARENTS +
+# EMPTY_PARENT_CANDIDATES above). NOTE: .agents/rules is doc-confirmed and
+# .agents/skills matches the Agent Skills standard (already used below); the
+# .agents/workflows path is inferred from the dir-wide rename (docs omit the
+# workflows folder) — re-verify if Antigravity formalizes a different path.
+mkdir -p .agents/rules .agents/workflows .agents/skills
 for f in "$HARNESS_ROOT"/adapters/antigravity/rules/*.md; do
   [[ -e "$f" ]] || continue
-  cp_managed "$f" ".agent/rules/$(basename "$f")"
+  cp_managed "$f" ".agents/rules/$(basename "$f")"
 done
 for f in "$HARNESS_ROOT"/adapters/antigravity/workflows/*.md; do
   [[ -e "$f" ]] || continue
-  cp_managed "$f" ".agent/workflows/$(basename "$f")"
+  cp_managed "$f" ".agents/workflows/$(basename "$f")"
 done
 for d in "$HARNESS_ROOT"/adapters/antigravity/skills/*/; do
   [[ -d "$d" ]] || continue
-  cp_managed_dir "$d" ".agent/skills/$(basename "$d")"
+  cp_managed_dir "$d" ".agents/skills/$(basename "$d")"
 done
 
-# .agents/skills/ — shared skills delivery (read by Gemini CLI per the
-# Agent Skills standard). Source: adapters/claude-code/skills/. The
-# shared skills are duplicated across per-host adapter dirs (parity
-# enforces identical content) and claude-code/skills/ is the cleanest
-# source — antigravity/skills/ mixes sub-agents-as-skills with shared
-# skills, so iterating that dir would over-deliver.
+# .agents/skills/ — shared skills delivery (read by BOTH Gemini CLI and
+# Antigravity per the Agent Skills standard; V4 #22 migrated the Antigravity
+# adapter onto .agents/, so it now reads this shared path too). Source:
+# adapters/claude-code/skills/ — the canonical home for the shared skills.
+# The `doctor` skill here is host-aware (detects claude-code / antigravity /
+# gemini at runtime). The antigravity + gemini adapters deliberately do NOT
+# duplicate these (deduped — see check-parity), so they're delivered once here.
 mkdir -p .agents/skills
 for name in doctor migrate-to-diataxis; do
   src="$HARNESS_ROOT/adapters/claude-code/skills/$name"

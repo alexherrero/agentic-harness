@@ -39,9 +39,9 @@ expected=(
   .claude/agents/documenter.md
   .claude/skills/doctor/SKILL.md
   .claude/settings.json
-  .agent/rules/harness.md
-  .agent/workflows/plan.md
-  .agent/skills/doctor/SKILL.md
+  .agents/rules/harness.md
+  .agents/workflows/plan.md
+  .agents/skills/documenter/SKILL.md
   .agents/skills/doctor/SKILL.md
   .gemini/commands/plan.toml
   .gemini/agents/explorer.md

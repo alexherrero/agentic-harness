@@ -143,7 +143,7 @@ If [`crickets`](https://github.com/alexherrero/crickets) is installed alongside 
 **When to skip:**
 
 - Verification clause is vague: no precise rubric to grade against. Adversarial-reviewer alone covers the phase contract.
-- `crickets` not installed in the project (no `.claude/agents/evaluator.md` / `.agent/skills/evaluator/SKILL.md` / `.gemini/agents/evaluator.md`): graceful-skip silently. Install crickets alongside the harness to enable; otherwise the adversarial-reviewer-only flow continues to satisfy the phase contract.
+- `crickets` not installed in the project (no `.claude/agents/evaluator.md` / `.agents/skills/evaluator/SKILL.md` / `.gemini/agents/evaluator.md`): graceful-skip silently. Install crickets alongside the harness to enable; otherwise the adversarial-reviewer-only flow continues to satisfy the phase contract.
 
 **Dispatch pattern.** Construct a prompt with `ARTIFACT:` and `RUBRIC:` labeled sections; the rubric is the PLAN.md Verification clause restated as numbered verifiable claims:
 

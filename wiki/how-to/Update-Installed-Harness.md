@@ -40,7 +40,7 @@
 | `AGENTS.md`, `CLAUDE.md` | User | No |
 | `wiki/` scaffold | User | Per-file walk — missing files filled in, existing files preserved |
 | `.harness/scripts/`, `.harness/hooks/` | Harness | Yes (wiped + recreated from source) |
-| `.claude/`, `.agent/`, `.agents/`, `.gemini/` | Harness | Yes (wiped + recreated from source) |
+| `.claude/`, `.agents/`, `.gemini/` | Harness | Yes (wiped + recreated from source) |
 | `.github/workflows/wiki-sync.yml` | Harness | Yes (overwritten) |
 | `.harness/.version` | Harness | Written after a successful update (so future runs can show a delta) |
 
@@ -49,13 +49,13 @@
 Starting with v1.0.0, `--update` is a **true sync** against the GitHub source-of-truth, not a refresh-current-set. Twelve fully-harness-authored subdirs are wiped before being recreated from source:
 
 ```
-.claude/commands  .agent/rules        .agents/skills
-.claude/agents    .agent/workflows    .gemini/commands
-.claude/skills    .agent/skills       .gemini/agents
-.harness/scripts  .harness/hooks
+.claude/commands  .agents/rules       .gemini/commands
+.claude/agents    .agents/workflows   .gemini/agents
+.claude/skills    .agents/skills      .harness/scripts
+.harness/hooks
 ```
 
-Any orphaned harness-installed paths (e.g. `.codex/` from pre-v1.0.0 installs) are automatically removed — the installer reports them as `removed legacy <path>/` in the output. User state files at `.harness/` root (`PLAN.md`, `progress.md`, `features.json`, `init.sh`, `verify.{sh,ps1}`, `known-migrations.md`), merged `settings.json` files, `wiki/**`, and root-level `AGENTS.md` / `CLAUDE.md` are deliberately excluded from the wipe and survive untouched.
+The Antigravity tree moved from `.agent/` (singular) to `.agents/` (plural) in V4 #22, matching Antigravity 2.0's default. Any orphaned harness-installed paths — the legacy `.agent/` tree, or `.codex/` from pre-v1.0.0 installs — are automatically removed — the installer reports them as `removed legacy <path>/` in the output. User state files at `.harness/` root (`PLAN.md`, `progress.md`, `features.json`, `init.sh`, `verify.{sh,ps1}`, `known-migrations.md`), merged `settings.json` files, `wiki/**`, and root-level `AGENTS.md` / `CLAUDE.md` are deliberately excluded from the wipe and survive untouched.
 
 This is what makes future host removals or skill rearrangements clean: local trees stay in lockstep with GitHub on every `--update`, no per-removal patches needed.
 

@@ -42,7 +42,7 @@ Best path: give Claude Desktop a **local filesystem MCP server** pointed at the 
 
 ## Antigravity
 
-Antigravity is a local filesystem agent; it loads [the context payload](https://github.com/alexherrero/agentm/blob/main/templates/agentmemory-context.md#L19) as the installed `agentmemory-context` rule in `.agent/rules/` — no manual paste. The installer dispatches it automatically (`install.sh` / `install.ps1` ship it on `--update`, refreshing alongside the other rules). Unlike the read-only chat surfaces above, Antigravity is a **read-write working agent**: it may read *and* write the vault, following your entry conventions, exactly like Claude Code. Dynamic session-start *recall* (vs. this static rule) is a future enhancement.
+Antigravity is a local filesystem agent; it loads [the context payload](https://github.com/alexherrero/agentm/blob/main/templates/agentmemory-context.md#L19) as the installed `agentmemory-context` rule in `.agents/rules/` — no manual paste. The installer dispatches it automatically (`install.sh` / `install.ps1` ship it on `--update`, refreshing alongside the other rules). Unlike the read-only chat surfaces above, Antigravity is a **read-write working agent**: it may read *and* write the vault, following your entry conventions, exactly like Claude Code. Dynamic session-start *recall* (vs. this static rule) is a future enhancement.
 
 ## Deferred surfaces *(post-FRIDAY — #28)*
 

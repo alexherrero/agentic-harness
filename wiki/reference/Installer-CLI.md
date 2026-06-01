@@ -24,7 +24,7 @@ install.ps1 [-Hooks] [-Update] <target-project-path>
 | Flag (bash) | Flag (pwsh) | Effect |
 |---|---|---|
 | `--hooks` | `-Hooks` | Copy hook scripts into `.harness/hooks/` and merge PostToolUse / PreCompact / SessionStart entries into `.claude/settings.json`. Requires `jq` on POSIX; pwsh uses native JSON cmdlets. |
-| `--update` | `-Update` | **True sync** (v1.0.0+): wipe twelve harness-authored dirs (`.claude/{commands,agents,skills}`, `.agent/{rules,workflows,skills}`, `.agents/skills`, `.gemini/{commands,agents}`, `.harness/{scripts,hooks}`) and recreate from source. Orphan paths from older versions (e.g. `.codex/`) are auto-removed. Leaves user-owned files (`.harness/PLAN.md`, `progress.md`, `verify.sh`, `init.sh`, `known-migrations.md`, `AGENTS.md`, `CLAUDE.md`, `wiki/**`) alone. Writes `.harness/.version`. |
+| `--update` | `-Update` | **True sync** (v1.0.0+): wipe the harness-authored dirs (`.claude/{commands,agents,skills}`, `.agents/{rules,workflows,skills}`, `.gemini/{commands,agents}`, `.harness/{scripts,hooks}`) and recreate from source. Orphan paths from older versions (e.g. the legacy `.agent/` tree, or `.codex/`) are auto-removed. Leaves user-owned files (`.harness/PLAN.md`, `progress.md`, `verify.sh`, `init.sh`, `known-migrations.md`, `AGENTS.md`, `CLAUDE.md`, `wiki/**`) alone. Writes `.harness/.version`. |
 | `-h`, `--help` | `-Help` | Print the header comment block from the installer and exit. |
 
 ## Prerequisites
@@ -45,7 +45,7 @@ install.ps1 [-Hooks] [-Update] <target-project-path>
 | `.harness/scripts/` (telemetry, cross-review) | Harness | Overwritten |
 | `.harness/hooks/` | Harness | Overwritten (only with `--hooks`) |
 | `.claude/commands/`, `.claude/agents/`, `.claude/skills/` | Harness | Overwritten |
-| `.agent/`, `.agents/`, `.gemini/` (adapter trees) | Harness | Overwritten on `--update` (wipe-and-recreate from source — see Update-Installed-Harness) |
+| `.agents/`, `.gemini/` (adapter trees) | Harness | Overwritten on `--update` (wipe-and-recreate from source — see Update-Installed-Harness) |
 | `AGENTS.md`, `CLAUDE.md` | User (skip-if-exists) | Left alone |
 | `wiki/` scaffold | User | Per-file walk; missing files filled in, existing left alone |
 | `.github/workflows/wiki-sync.yml` | Harness | Overwritten |

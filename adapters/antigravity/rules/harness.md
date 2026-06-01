@@ -12,9 +12,9 @@ Antigravity's native surface maps as follows:
 
 | Harness surface | Antigravity primitive | Location |
 |---|---|---|
-| Phase commands (setup/plan/work/review/release/bugfix) | Workflows | `.agent/workflows/*.md` |
-| Sub-agents (explorer, adversarial-reviewer, adversarial-reviewer-cross, documenter) | Skills | `.agent/skills/<name>/SKILL.md` |
-| Skills (dependabot-fixer) | Skills | `.agent/skills/<name>/SKILL.md` |
+| Phase commands (setup/plan/work/review/release/bugfix) | Workflows | `.agents/workflows/*.md` |
+| Sub-agents (explorer, adversarial-reviewer, adversarial-reviewer-cross, documenter) | Skills | `.agents/skills/<name>/SKILL.md` |
+| Skills (dependabot-fixer) | Skills | `.agents/skills/<name>/SKILL.md` |
 
 Invoke a workflow by name from the chat (e.g. *"run the plan workflow with brief: …"*). Invoke a skill when its trigger conditions match, or explicitly (*"use the explorer skill to find …"*).
 

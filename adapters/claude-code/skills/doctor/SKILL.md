@@ -11,16 +11,22 @@ You are running the `doctor` skill. Full canonical spec: `harness/skills/doctor.
 - **`--live`** → default checks plus live probes (one dispatch per sub-agent, one dry-run per skill).
 - **`--live --verbose`** → same as `--live` but print raw probe output on each row.
 
-## Adapter detection + install scope
+## Host + adapter detection
 
-This is the Claude Code adapter. Resolve install scope before checking primitives:
+`doctor` ships to all three agentm host adapters from one source — **detect which host you're in from disk first**, then run that host's structural battery. The expected NAME sets (phase commands, sub-agents, skills) are identical across hosts; only the paths and hook-applicability differ.
 
-- **Project scope** — `<project>/.claude/commands/` populated. Expected sets must live under `<project>/.claude/`.
-- **User scope (default since V4 #30 v4.3.0)** — `<project>/.claude/commands/` empty/absent but `~/.claude/commands/` populated. Run the full structural battery against `~/.claude/`.
-- **Mixed** — both populated. Validate each scope's set independently.
-- **Neither** — abort: `doctor: no Claude Code install detected at project or user scope — run install.sh /path/to/project`.
+| Host | Detect (disk marker) | Phase commands | Sub-agents | Skills | Hooks |
+|---|---|---|---|---|---|
+| **Claude Code** | `.claude/commands/` present | `$ROOT/commands/*.md` | `$ROOT/agents/*.md` | `$ROOT/skills/*/` | `$ROOT/hooks/` + `settings.json` |
+| **Antigravity** | `.agents/workflows/` present, no `.claude/` | `.agents/workflows/*.md` | `.agents/skills/*/` (no separate sub-agent primitive) | `.agents/skills/*/` | none — skip |
+| **Gemini CLI** | `.gemini/commands/` present, no `.claude/` | `.gemini/commands/*.toml` | `.gemini/agents/*.md` | `.agents/skills/*/` (shared delivery) | none — skip |
 
-Use whichever scope holds the primitives as `$CC_ROOT` for the rest of the structural checks. Report the resolved scope on the output (`scope: user|project|mixed`).
+- **Claude Code only — resolve install scope** before checking: project (`<project>/.claude/` populated), **user** (`~/.claude/` populated — default since v4.3.0), or mixed; use whichever holds the primitives as `$ROOT` and report it (`scope: user|project|mixed`).
+- **Antigravity** reads `.agents/` (the 2.0 default; `.agent/` singular is the pre-V4 #22 legacy path, migrated on `--update`). Its sub-agents *and* skills both live under `.agents/skills/`. Always-on rules: `.agents/rules/harness.md` + `.agents/rules/agentmemory-context.md`.
+- **No hook surface on Antigravity / Gemini** — skip the hook-wiring check (#6) and the hook/SessionStart probes (#6–#7); report them `[SKIP] no hook surface on <host>`, never FAIL.
+- **None detected** — abort: `doctor: no agentm install detected (.claude/, .agents/, or .gemini/) — run install.sh /path/to/project`.
+
+Report the detected `host:` on the output, and use the detected host's primitive paths as `$ROOT` for the checks below.
 
 ## Default-mode checks
 
@@ -28,16 +34,18 @@ Expected name sets:
 
 | Surface | Required | Optional (graceful-skip if absent) |
 |---|---|---|
-| `$CC_ROOT/commands/*.md` | `bugfix, plan, release, review, setup, work` | `recent-wiki-changes` (V4 #30 plan 2 / v4.4.0+) |
-| `$CC_ROOT/agents/*.md` | `adversarial-reviewer, adversarial-reviewer-cross, documenter, explorer` | `memory-idea-researcher` (harness); `adapt-evaluator, diataxis-evaluator, evaluator` (crickets) |
-| `$CC_ROOT/skills/*/` | `doctor, migrate-to-diataxis, wiki-author` (wiki-author since V4 #30 plan 2 / v4.4.0) | `design, diataxis-author, memory, ship-release` (harness compound); `dependabot-fixer, pii-scrubber` (crickets) |
+| `$ROOT/commands/*.md` | `bugfix, plan, release, review, setup, work` | `recent-wiki-changes` (V4 #30 plan 2 / v4.4.0+) |
+| `$ROOT/agents/*.md` | `adversarial-reviewer, adversarial-reviewer-cross, documenter, explorer` | `memory-idea-researcher` (harness); `adapt-evaluator, diataxis-evaluator, evaluator` (crickets) |
+| `$ROOT/skills/*/` | `doctor, migrate-to-diataxis, wiki-author` (wiki-author since V4 #30 plan 2 / v4.4.0) | `design, diataxis-author, memory, ship-release` (harness compound); `dependabot-fixer, pii-scrubber` (crickets) |
+
+The table above is written with Claude Code's surfaces (`commands` / `agents` / `skills`); on **Antigravity** map them per the detection table — phase commands → `.agents/workflows/*.md`, and sub-agents *and* skills both → `.agents/skills/*/` (the same Required name sets apply); on **Gemini** → `.gemini/commands/*.toml` + `.gemini/agents/*.md` + shared `.agents/skills/*/`.
 
 "Required" must be present and parse cleanly — missing or broken is FAIL. "Optional" is reported as `[OK] N present` or `[SKIP] not installed` — never FAIL. Extras outside both lists are reported as a soft `note:` row, not a failure.
 
 For each expected file:
 1. Exists at the right path.
 2. Frontmatter YAML parses cleanly (no trailing-tab or quote issues).
-3. `name:` field matches dirname — **only** for sub-agents and skills (which carry an explicit `name:`). Claude Code phase commands intentionally have no `name:` field; their name is implicit from the filename. Don't flag them for a missing `name:`.
+3. `name:` field matches dirname — **only** for sub-agents and skills (which carry an explicit `name:`). Phase commands (Claude Code `.md` / Antigravity workflows) intentionally have no `name:` field; their name is implicit from the filename. Don't flag them for a missing `name:`.
 
 Then:
 4. **State files (V4 #26-aware)**: Resolve via this two-step ladder:
@@ -47,7 +55,7 @@ Then:
    - Note: `scripts/telemetry.sh` is no longer a vault-resident state file (v4.6.2+). It's a user-scope helper — see check 4b below.
 4b. **Helper scripts (user-scope; v4.6.2+).** Check `<prefix>/scripts/telemetry.sh` exists + is executable. Report `[OK] telemetry.sh installed` if present. Report `[WARN] telemetry.sh not installed — re-run install.sh` if absent (graceful, never FAIL). The script roots across multiple projects (`--all` scans `~/Antigravity`, `~/Claude`, `~/Projects`), so it lives at user scope, not per-project.
 5. `AGENTS.md` + `CLAUDE.md` exist at repo root.
-6. **Hook wiring (V4 #39 — a real check, not "absent block is fine").** Hooks install at user scope (`~/.claude/hooks/<name>/`) under `--scope user`; the installer MUST merge each hook's `settings-fragment-bash.json` into `<prefix>/settings.json` (V4 #39 task 1). Resolve the prefix (`$AGENTM_INSTALL_PREFIX` → `~/.claude`) and apply this truth table against `<prefix>/hooks/` + `<prefix>/settings.json` (apply the same logic to a populated legacy project-scope `<project>/.claude/`):
+6. **Hook wiring (V4 #39 — a real check, not "absent block is fine"). _Claude Code only — on Antigravity/Gemini report `[SKIP] no hook surface` and move on._** Hooks install at user scope (`~/.claude/hooks/<name>/`) under `--scope user`; the installer MUST merge each hook's `settings-fragment-bash.json` into `<prefix>/settings.json` (V4 #39 task 1). Resolve the prefix (`$AGENTM_INSTALL_PREFIX` → `~/.claude`) and apply this truth table against `<prefix>/hooks/` + `<prefix>/settings.json` (apply the same logic to a populated legacy project-scope `<project>/.claude/`):
 
    | Disk state | Report |
    |---|---|
@@ -107,15 +115,15 @@ Invoke with no matching Dependabot PRs open.
 
 Pass: one-line "no matching PRs", exit 0.
 
-### 6. Hook synthetic trigger (optional)
+### 6. Hook synthetic trigger (optional) — Claude Code only
 
-Only if `.claude/settings.json` has hooks. Exercise the project's `verify.sh` against an empty scratch file under `$TMPDIR` with a matching extension. Report **skip** (not fail) if project tooling (`ruff`, `npx`, etc.) is missing.
+Skip on Antigravity/Gemini (no hook surface). Only if `.claude/settings.json` has hooks. Exercise the project's `verify.sh` against an empty scratch file under `$TMPDIR` with a matching extension. Report **skip** (not fail) if project tooling (`ruff`, `npx`, etc.) is missing.
 
 Pass: verify command exits 0 on the empty file.
 
-### 7. Synthetic SessionStart probe (V4 #39; best-effort per DC-3)
+### 7. Synthetic SessionStart probe (V4 #39; best-effort per DC-3) — Claude Code only
 
-Send a synthetic SessionStart event JSON (`{"session_id":"doctor-probe","cwd":"<agentm clone>"}`) on stdin to each registered SessionStart hook script and capture stdout. Confirm at least `harness-context-session-start` returns a non-empty context block — agentm is a harness cwd, so it should emit the `[agentm] Project state…` header + at least one resolved path. **Best-effort:** skip gracefully (report **skip**, not fail) if a hook script can't be exercised standalone. The load-bearing gate is the structural hook-wiring check (#6 above); this probe is confirmation that a wired SessionStart hook actually fires.
+Skip on Antigravity/Gemini (no hook surface). Send a synthetic SessionStart event JSON (`{"session_id":"doctor-probe","cwd":"<agentm clone>"}`) on stdin to each registered SessionStart hook script and capture stdout. Confirm at least `harness-context-session-start` returns a non-empty context block — agentm is a harness cwd, so it should emit the `[agentm] Project state…` header + at least one resolved path. **Best-effort:** skip gracefully (report **skip**, not fail) if a hook script can't be exercised standalone. The load-bearing gate is the structural hook-wiring check (#6 above); this probe is confirmation that a wired SessionStart hook actually fires.
 
 **Additionally** assert `memory-recall-session-start` emits **non-empty stdout** when the configured vault has any `<vault>/personal-private/_always-load/*.md` entries:
 
@@ -128,9 +136,10 @@ Pass: `harness-context-session-start` emits a 2-path block matching the expected
 ## Output contract
 
 ```
-doctor: claude-code — <PASS|FAIL>
+doctor: claude-code — <PASS|FAIL>     (host: claude-code | antigravity | gemini)
 
-  scope:              user        (or: project | mixed)
+  host:               claude-code
+  scope:              user        (Claude Code only; or: project | mixed)
   state mode:         vault-resident   (or: legacy .harness/)
 
   structural:

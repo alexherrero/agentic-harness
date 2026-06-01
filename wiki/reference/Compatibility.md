@@ -36,7 +36,7 @@ Hosts that previously had adapters but were dropped:
 
 If a host's CI starts failing or a host's adapter goes stale:
 
-1. Check the host's release notes for surface changes (`.claude/` shape, `.agent/` shape, command syntax, etc.)
+1. Check the host's release notes for surface changes (`.claude/` shape, `.agents/` shape — formerly `.agent/`, command syntax, etc.)
 2. Verify the adapter's per-host paths still match — reference: each customization's `supported_hosts` in its manifest
 3. Run `bash scripts/smoke-install-bash.sh` locally; if it fails on the affected host, you've reproduced
 4. Patch the adapter shim OR the canonical spec it points at, whichever resolves the surface change at the right layer

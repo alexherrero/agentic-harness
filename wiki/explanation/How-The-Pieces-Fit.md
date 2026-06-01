@@ -30,8 +30,8 @@ Narrative of how phases, adapters, templates, scripts, and this wiki interact. F
                   ▼
          ┌───────────────────────────────────────────┐
          │  target-project/                           │
-         │    .harness/  .claude/  .agent/            │
-         │    .agents/  .gemini/                      │
+         │    .harness/  .claude/  .agents/           │
+         │    .gemini/                                │
          │    AGENTS.md  CLAUDE.md                    │
          │    wiki/  (empty scaffold from templates/) │
          │    .github/workflows/wiki-sync.yml          │

@@ -37,7 +37,7 @@ agentm/
 │   └── verification.md        # deterministic-gate definitions
 ├── adapters/                  # per-tool shims that point at harness/ specs
 │   ├── claude-code/           # .claude/commands + .claude/agents + .claude/skills
-│   ├── antigravity/           # .agent/workflows + .agent/skills + .agent/rules
+│   ├── antigravity/           # .agents/workflows + .agents/skills + .agents/rules (was .agent/, singular, pre-V4 #22)
 │   └── gemini/                # .gemini/commands + .gemini/agents + settings.json (shared .agents/skills delivered by installer)
 ├── lib/                       # shared install plumbing (byte-identical to crickets/lib/) — see ADR 0006
 │   └── install/               # cp_managed, cp_user, ensure_boundary_src, sync_managed_parents (bash + pwsh)
@@ -67,12 +67,12 @@ agentm/
 
 ## 🎨 The three adapters
 
-Every adapter ships the same canonical set of phase commands, sub-agents, and skills. Their *shape* differs per tool, but the names and jobs match. [`scripts/check-parity.sh`](https://github.com/alexherrero/agentm/blob/main/scripts/check-parity.sh) asserts this.
+Every adapter ships the same canonical set of phase commands, sub-agents, and skills *as installed*. Their *shape* differs per tool, but the names and jobs match. [`scripts/check-parity.sh`](https://github.com/alexherrero/agentm/blob/main/scripts/check-parity.sh) asserts this. The shared skills (`doctor`, `migrate-to-diataxis`) are authored once and delivered to `.agents/skills/` by `install.sh`; the hookless hosts (Antigravity, Gemini) reuse that delivery rather than carrying duplicate copies in their adapter dir.
 
 | Adapter | Phase commands | Sub-agents | Skills |
 |---|---|---|---|
 | `adapters/claude-code/` | `.claude/commands/*.md` | `.claude/agents/*.md` | `.claude/skills/*/SKILL.md` |
-| `adapters/antigravity/` | `.agent/workflows/*.md` | (via skills) | `.agent/skills/*/SKILL.md` |
+| `adapters/antigravity/` | `.agents/workflows/*.md` | `.agents/skills/*/SKILL.md` (no separate sub-agent primitive) | sub-agents-as-skills ship in the adapter; shared skills (`doctor`, `migrate-to-diataxis`) come from the `.agents/skills/` delivery by `install.sh` — not duplicated in the adapter, same pattern as Gemini |
 | `adapters/gemini/` | `.gemini/commands/*.toml` | `.gemini/agents/*.md` | reads `.agents/skills/*/SKILL.md` (delivered by `install.sh` per Agent Skills standard) |
 
 Canonical sub-agents: `explorer`, `adversarial-reviewer`, `adversarial-reviewer-cross`, `documenter`.

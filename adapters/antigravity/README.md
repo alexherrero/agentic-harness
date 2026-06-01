@@ -14,10 +14,10 @@ Full parity fixes all three. Antigravity's native surface maps 1:1 to the Claude
 
 | Claude Code | Antigravity | Purpose |
 |---|---|---|
-| `.claude/commands/*.md` | `.agent/workflows/*.md` | Phase entrypoints (setup/plan/work/review/release/bugfix) |
-| `.claude/agents/*.md` | `.agent/skills/<name>/SKILL.md` | Dispatchable capabilities (explorer, adversarial-reviewer, adversarial-reviewer-cross, documenter) |
-| `.claude/skills/*/SKILL.md` | `.agent/skills/<name>/SKILL.md` | Project skills (dependabot-fixer) |
-| `CLAUDE.md` pointer | `.agent/rules/harness.md` (`trigger: always_on`) | Always-on operating contract |
+| `.claude/commands/*.md` | `.agents/workflows/*.md` | Phase entrypoints (setup/plan/work/review/release/bugfix) |
+| `.claude/agents/*.md` | `.agents/skills/<name>/SKILL.md` | Dispatchable capabilities (explorer, adversarial-reviewer, adversarial-reviewer-cross, documenter) |
+| `.claude/skills/*/SKILL.md` | `.agents/skills/<name>/SKILL.md` | Project skills (dependabot-fixer) |
+| `CLAUDE.md` pointer | `.agents/rules/harness.md` (`trigger: always_on`) | Always-on operating contract |
 
 The **trade-off:** Antigravity has no native distinction between "sub-agent" and "skill". Both dispatch as skills. This is actually fine — the sub-agents' value is scoped dispatch with a narrow contract, which is exactly what a skill is. The one thing we lose is Claude Code's fresh-context guarantee on sub-agent dispatch (skills share context with the caller). Mitigation: the adversarial-reviewer skills explicitly instruct "do not read the implementer's reasoning trace" — enforced by discipline rather than a context boundary.
 
@@ -44,7 +44,7 @@ adapters/antigravity/
     └── dependabot-fixer/SKILL.md
 ```
 
-`install.sh` (POSIX) or `install.ps1` (Windows/PowerShell 7+) copies this tree to the target's `.agent/` directory with the same `cp_managed` semantics as the Claude Code adapter: refreshed on `--update` / `-Update`, preserved on fresh install if already present.
+`install.sh` (POSIX) or `install.ps1` (Windows/PowerShell 7+) copies this tree to the target's `.agents/` directory with the same `cp_managed` semantics as the Claude Code adapter: refreshed on `--update` / `-Update`, preserved on fresh install if already present.
 
 ## Invocation
 

@@ -102,9 +102,9 @@ required_non_empty=(
   .claude/agents/documenter.md
   .claude/skills/doctor/SKILL.md
   .claude/skills/migrate-to-diataxis/SKILL.md
-  .agent/workflows/plan.md
-  .agent/skills/documenter/SKILL.md
-  .agent/skills/migrate-to-diataxis/SKILL.md
+  .agents/workflows/plan.md
+  .agents/skills/documenter/SKILL.md
+  .agents/rules/harness.md
   .agents/skills/doctor/SKILL.md
   .agents/skills/migrate-to-diataxis/SKILL.md
   .gemini/commands/plan.toml

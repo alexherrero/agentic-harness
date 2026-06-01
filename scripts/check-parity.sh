@@ -80,9 +80,14 @@ echo "== antigravity =="
 # Antigravity maps phase-commands to workflows/, and puts sub-agents under
 # skills/ (no separate sub-agent primitive in Antigravity's surface).
 assert_set "antigravity/workflows"          adapters/antigravity/workflows   md "${CANON_COMMANDS[@]}"
-# skills/ = sub-agents + dependabot-fixer
-expected_antigravity_skills=("${CANON_AGENTS[@]}" "${CANON_SKILLS[@]}")
-assert_set "antigravity/skills"             adapters/antigravity/skills      ""  "${expected_antigravity_skills[@]}"
+# skills/ = the sub-agents only (Antigravity has no separate sub-agent primitive,
+# so sub-agents are delivered as skills). Shared skills (doctor, migrate-to-diataxis)
+# are NOT duplicated here — install.sh delivers them to `.agents/skills/` and
+# Antigravity reads that path natively, same as Gemini. (V4 #22 unified the adapter
+# onto `.agents/` (was `.agent/`, singular); since the shared `.agents/skills/`
+# delivery and the adapter now share that path, duplicating the shared skills would
+# collide — they're reused, not duplicated, and the canonical `doctor` is host-aware.)
+assert_set "antigravity/skills"             adapters/antigravity/skills      ""  "${CANON_AGENTS[@]}"
 # the always-on rules files: operating contract + AgentMemory vault context (V4 #22)
 assert_set "antigravity/rules"              adapters/antigravity/rules       md  harness agentmemory-context
 

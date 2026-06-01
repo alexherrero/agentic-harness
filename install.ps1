@@ -252,13 +252,14 @@ $ManagedParents = @(
     # V4 #36: compound hooks (memory-*, evidence-tracker) imported from
     # crickets land at .claude/hooks/ via the manifest dispatcher.
     '.claude/hooks',
+    # legacy (pre-V4 #22) — wiped on -Update; migrated to .agents/
     '.agent/rules', '.agent/workflows', '.agent/skills',
-    '.agents/skills',
+    '.agents/rules', '.agents/workflows', '.agents/skills',
     '.codex/agents',
     '.gemini/commands', '.gemini/agents',
     '.harness/scripts', '.harness/hooks'
 )
-$EmptyParentCandidates = @('.codex', '.agents')
+$EmptyParentCandidates = @('.codex', '.agent', '.agents')
 
 if ($Update) {
     Write-Host '==> sync mode: wiping fully-managed dirs before recreate from source'
@@ -284,10 +285,12 @@ Copy-AdapterFiles (Join-Path $HarnessRoot 'adapters/claude-code/commands') '*.md
 Copy-AdapterFiles (Join-Path $HarnessRoot 'adapters/claude-code/agents')   '*.md' '.claude/agents'
 Copy-AdapterDirs  (Join-Path $HarnessRoot 'adapters/claude-code/skills')          '.claude/skills'
 
-# .agent/ — Antigravity adapter
-Copy-AdapterFiles (Join-Path $HarnessRoot 'adapters/antigravity/rules')     '*.md' '.agent/rules'
-Copy-AdapterFiles (Join-Path $HarnessRoot 'adapters/antigravity/workflows') '*.md' '.agent/workflows'
-Copy-AdapterDirs  (Join-Path $HarnessRoot 'adapters/antigravity/skills')           '.agent/skills'
+# .agents/ — Antigravity adapter (V4 #22: migrated .agent/ → .agents/, the
+# Antigravity 2.0 default; legacy .agent/ wiped on -Update. .agents/rules is
+# doc-confirmed; .agents/workflows is inferred from the dir-wide rename.)
+Copy-AdapterFiles (Join-Path $HarnessRoot 'adapters/antigravity/rules')     '*.md' '.agents/rules'
+Copy-AdapterFiles (Join-Path $HarnessRoot 'adapters/antigravity/workflows') '*.md' '.agents/workflows'
+Copy-AdapterDirs  (Join-Path $HarnessRoot 'adapters/antigravity/skills')           '.agents/skills'
 
 # .agents/skills/ — shared skills delivery (read by Gemini CLI per the
 # Agent Skills standard). Source: adapters/claude-code/skills/ (parity
