@@ -192,7 +192,7 @@ Plugins (Antigravity 2.0 / agy v1.0.2+):
 |---|---|
 | [`example-plugin`](harness/plugins/example-plugin/) | Reference plugin showing the Antigravity 2.0 plugin manifest format. Install via `bash scripts/install-plugin.sh example-plugin`. |
 
-Base primitives + the 3 evaluator sub-agents (`evaluator`, `adapt-evaluator`, `diataxis-evaluator`) + 3 operator-control hooks (`kill-switch`, `steer`, `commit-on-stop`) + 2 utility skills (`pii-scrubber`, `dependabot-fixer`) live in **Crickets**. See [ADR 0012](https://github.com/alexherrero/crickets/blob/main/wiki/explanation/decisions/0012-device-wide-by-default.md) for the device-wide-by-default split rationale and [ADR 0006](wiki/explanation/decisions/0006-crickets-split.md) for the original split decision.
+Base primitives + the 2 evaluator sub-agents (`evaluator`, `diataxis-evaluator`) + 3 operator-control hooks (`kill-switch`, `steer`, `commit-on-stop`) + 2 utility skills (`pii-scrubber`, `dependabot-fixer`) live in **Crickets**. (The memory-flow `adapt-evaluator` sub-agent moved to agentm in V4 #23 — memory primitives are agentm-native.) See [ADR 0012](https://github.com/alexherrero/crickets/blob/main/wiki/explanation/decisions/0012-device-wide-by-default.md) for the device-wide-by-default split rationale and [ADR 0006](wiki/explanation/decisions/0006-crickets-split.md) for the original split decision.
 
 ## Telemetry
 

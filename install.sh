@@ -537,8 +537,8 @@ MANAGED_PARENTS=(
   .claude/commands
   .claude/agents
   .claude/skills
-  .claude/hooks      # V4 #36: compound hooks (memory-*, evidence-tracker)
-                     # imported from crickets land here via the manifest
+  .claude/hooks      # compound hooks (memory-*, evidence-tracker) — agentm-native
+                     # in harness/hooks/, dispatched here via the manifest
                      # dispatcher.
   .agent/rules       # legacy (pre-V4 #22) — wiped on --update; migrated to .agents/
   .agent/workflows   # legacy (pre-V4 #22) — wiped on --update; migrated to .agents/
@@ -670,10 +670,12 @@ cp_user_walk "$HARNESS_ROOT/templates/wiki" "wiki"
 #
 # Walks harness/skills/<dir>/SKILL.md, harness/hooks/<dir>/hook.md, and
 # harness/agents/<file>.md, dispatching each based on its supported_hosts
-# field. Imported from crickets in v4.0.0 per design call #28 of plan #18:
-# compound skills (memory, design, diataxis-author, ship-release), memory
-# hooks (memory-recall-*, memory-reflect-*), the evidence-tracker hook,
-# and the memory-idea-researcher sub-agent.
+# field. These compound customizations are agentm-native (in harness/) —
+# originally imported from crickets in v4.0.0 (plan #18 DC #28) and since
+# owned by agentm: the memory / design / diataxis-author / ship-release
+# skills, the memory hooks (memory-recall-*, memory-reflect-*), the
+# evidence-tracker hook, and the memory-idea-researcher + adapt-evaluator
+# sub-agents.
 #
 # Only dispatches entries with crickets-shape frontmatter (kind: <type> +
 # supported_hosts: <list>). Legacy agentm single-file skills (doctor.md,

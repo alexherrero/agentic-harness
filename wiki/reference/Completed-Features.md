@@ -131,7 +131,7 @@ Single-commit harness release. No new feature entries in `features.json` (discov
 - [crickets v0.10.0](https://github.com/alexherrero/crickets/releases/tag/v0.10.0) — paired release; 8 commits across plan #7b tasks 1-7
 - [crickets ADR 0007 — MemoryVault Discovery + Mining](https://github.com/alexherrero/crickets/blob/main/wiki/explanation/decisions/0007-memoryvault-discovery.md) — 7 locked design calls + 4 load-bearing assumptions with re-audit triggers
 - [crickets MemoryVault design doc](https://github.com/alexherrero/crickets/blob/main/wiki/explanation/designs/memoryvault.md) — Document History row 11 captures the discovery + mining additive layer
-- [crickets `adapt-evaluator` sub-agent](https://github.com/alexherrero/crickets/blob/main/agents/adapt-evaluator.md) — read-only Pass 2 worker with write allowlist scoped to `_skill-watchlist/`
+- [`adapt-evaluator` sub-agent](https://github.com/alexherrero/agentm/blob/main/harness/agents/adapt-evaluator.md) — read-only Pass 2 worker with write allowlist scoped to `_skill-watchlist/` (shipped in crickets; moved to agentm in V4 #23)
 - [Use-The-Memory-Skill how-to](https://github.com/alexherrero/crickets/blob/main/wiki/how-to/Use-The-Memory-Skill.md) — `## Discovery + mining (plan #7b)` section with worked invocations for all 5 new sub-commands
 - [ROADMAP item #7b](https://github.com/alexherrero/agentm/blob/main/.harness/ROADMAP.md) — the roadmap entry closed by this release (MemoryVault parent design now fully shipped — both #7a + #7b are Completed)
 - [v2.4.2](https://github.com/alexherrero/agentm/releases/tag/v2.4.2) — release notes, [CHANGELOG.md](https://github.com/alexherrero/agentm/blob/main/CHANGELOG.md)
