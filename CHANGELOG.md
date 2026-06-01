@@ -5,6 +5,39 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v4.12.0] — 2026-06-01 — Cross-surface Agent M vault access (V4 #22)
+
+**MINOR.** Until now your AgentMemory vault was only readable natively by Claude Code (via its SessionStart hooks). This release makes the vault readable from **every agent surface you use** — Claude.ai, Claude Desktop, and Antigravity — so each one already knows your conventions, projects, and decisions without you re-explaining them every session. The mechanism is **configure-don't-build**: one canonical, paste-anywhere context payload plus thin per-surface wiring; no new MCP server, API, or daemon. Read-only v1 for the chat surfaces; the filesystem working agents you run (Claude Code, Antigravity) may write. Single-repo release; crickets untouched. Every surface is operator-dogfood-validated — Antigravity confirmed on **both** the Antigravity CLI and the Antigravity IDE.
+
+### Added
+
+- **Canonical context payload** (`templates/agentmemory-context.md`) — the one paste-anywhere doc that teaches any surface how to use the vault: per-surface path resolution, the folder map, read-priority order, the entry-reading conventions, and the surface-scoped read/write posture. A self-describing copy lives at `<vault>/_meta/how-to-use-agentmemory.md` so an agent that reaches the vault finds its own usage instructions.
+- **Claude.ai** reads the vault via the Google Drive connector (whole-Drive *search*; the payload scopes it to `AgentMemory/`). Dogfood-validated: a fresh chat searched Drive, read `_always-load/`, and answered a convention question unprimed.
+- **Claude Desktop** reads the vault via a local **filesystem MCP server** pointed at the vault (Claude-Code-grade navigation, no Drive dependency). Dogfood-validated.
+- **Antigravity — per-project rule.** `adapters/antigravity/rules/agentmemory-context.md` (`trigger: always_on`) installs into a project's `.agents/rules/` and loads vault context every session — no manual paste.
+- **Antigravity — global rule (user-scope).** `install.sh --scope user` (and `install.ps1 -Scope user`) now idempotently merge the payload into **`~/.gemini/GEMINI.md`** (Antigravity 2.0's global rules file) as a marker-delimited managed section, so Antigravity picks up the vault in **every** workspace with no per-project install — parity with how `--scope user` installs the Claude Code adapter to `~/.claude/`. New `scripts/merge-managed-section.py` does the idempotent create/append/replace-in-place merge, preserving the operator's own GEMINI.md content; gated on `~/.gemini/` already existing.
+
+### Changed
+
+- **Antigravity adapter migrated `.agent/` → `.agents/`** — the Antigravity 2.0 workspace default (per the official rules-workflows docs). Both installers now lay the adapter (rules/workflows/skills) under `.agents/`, and `--update` wipes any legacy `.agent/` tree. `.agents/rules` is doc-confirmed; `.agents/workflows` is inferred from the dir-wide rename.
+- **`doctor` is now host-aware.** The canonical doctor detects the host from disk (claude-code `.claude/` · antigravity `.agents/` · gemini `.gemini/`), checks that host's paths, and skips hook/SessionStart checks on the hookless hosts. The Antigravity adapter no longer duplicates the shared `doctor`/`migrate-to-diataxis` skills — it reuses the shared `.agents/skills/` delivery, exactly like Gemini (one host-aware source, no collision).
+- **Read/write posture is surface-scoped** (replacing blanket read-only): chat surfaces (Claude.ai, Claude Desktop) never write — they suggest entries for the operator to paste; the filesystem working agents the operator runs (Claude Code, Antigravity) may write, following the vault conventions.
+
+### Internal
+
+- `scripts/merge-managed-section.py` + 9 unit tests (idempotency, no-clobber on both sides, position-preserve, frontmatter strip). `check-parity.sh` updated for the deduped Antigravity skill set + the two always-on Antigravity rules; path-asserting gates (`smoke-install-*`, `check-integrity-*`) follow the `.agents/` migration. Wiki: consolidated cross-surface how-to + payload reference + per-surface dogfood results.
+
+### Deferred (not in v1)
+
+- **Gemini, ChatGPT, Codex** — chat-only bots with no live file/search access to the vault (a plain Gemini chat confirmed it *"can't access or browse your live Google Drive files"*); revisit when they gain agentic Drive/file access. Codex deferred until FRIDAY lands.
+- **Antigravity dynamic session-start *recall* hook** (vs. the static rule) + the full hook-porting re-audit + the ADR→living-design / documenter-pattern overhaul — folded into a future **crickets** roadmap item (Antigravity 2.0's new file-based JSON hook surface supersedes the old "no hook surface" finding).
+- **Connector-based write-back for the chat surfaces** — a distinct v2 problem.
+
+### Cross-references
+
+- ROADMAP-V4 item **#22** — cross-surface Agent M vault access (read-only v1).
+- [agentm v4.11.1](https://github.com/alexherrero/agentm/releases/tag/v4.11.1) — the immediately prior release (conflict-merger hotfix), carried forward in this release's history.
+
 ## [v4.11.1] — 2026-05-31 — Fix: conflict-merger hook inert on user-scope installs
 
 **PATCH.** The `conflict-merger-session-start` SessionStart hook — the operator-facing half of V4 #26's cross-agent / cross-device conflict detection — was structurally installed and wired but **functionally inert** on the canonical user-scope install. It read the vault location only from the `MEMORY_VAULT_PATH` env var, which Claude Code does not inject into the hook environment on user-scope installs (and which isn't exported by shell profiles or `settings.json`), so the hook silently exited 0 on every real session boot and never ran `detect_conflict_files()`. Surfaced by a targeted `/doctor` probe during operator dogfood. Single-repo release; crickets untouched. Isolated hotfix — cherry-picked off v4.11.0, independent of the in-flight V4 #22 work on `main`.
