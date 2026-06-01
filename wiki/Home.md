@@ -79,6 +79,7 @@ Should print your always-load entries within the 4000-token budget. Empty = vaul
 - [How to audit the MemoryVault](Audit-The-Vault) — run the read-only vault lint, read the report under `_meta/`, and apply suggested fixes by hand.
 - [How to find missing note links](Find-Missing-Note-Links) — run the read-only personal-notes link-discovery audit and add the suggested `[[wikilinks]]` by hand.
 - [How to use AgentMemory in any agent](Use-AgentMemory-In-Any-Agent) — configure any surface (Claude.ai · Gemini · ChatGPT · Antigravity) to read the vault natively (read-only) by pasting the one context payload.
+- [How to tune auto-orchestration](Tune-Auto-Orchestration) — edit the toggles, thresholds, and cooldowns that drive the SessionStart briefing and the idle-time memory chain.
 
 ## 📖 Looking up a detail?
 
@@ -91,6 +92,7 @@ Should print your always-load entries within the 4000-token budget. Empty = vaul
 - [Vault lint checks reference](Vault-Lint-Checks) — the 9 read-only `vault_lint.py` checks: id / severity / what each checks / suggested-fix shape.
 - [Note relatedness signals reference](Note-Relatedness-Signals) — the two signals (TF-IDF + embedding) + thresholds `notes_link_discovery.py` scores on.
 - [AgentMemory context payload reference](AgentMemory-Context-Payload) — the canonical paste-anywhere payload's sections (path resolution / folder map / read priority / conventions / read-only boundary).
+- [Auto-orchestration config reference](Auto-Orchestration-Config) — every config key + default (toggles / thresholds / cooldowns) and the `auto-orchestration-state.json` shape.
 - [Compatibility](Compatibility) — supported hosts (Claude Code, Antigravity) + OS matrix + adapter contract.
 - [Completed features](Completed-Features) — reverse-chronological log of shipped work.
 
@@ -102,6 +104,7 @@ Should print your always-load entries within the 4000-token budget. Empty = vaul
 - [Auto-detect + auto-configure](Auto-Detect-Configure) — why first-session config proposes-then-approves and why it lives in `project.json`.
 - [How the pieces fit](How-The-Pieces-Fit) — narrative of how phases, adapters, templates, and scripts interact.
 - [GitHub Projects integration](GitHub-Projects-Integration) — why and how the harness writes to ProjectsV2.
+- [Auto-orchestration](Auto-Orchestration) — why the memory skills became a push surface, and how the briefing + idle chain + phase dispatch never nag.
 
 ### Architecture decisions
 

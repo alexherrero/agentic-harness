@@ -5,6 +5,37 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v4.13.0] — 2026-06-01 — Auto-orchestration: the memory push-surface (V4 #23)
+
+**MINOR.** The Agent M memory skills were a *pull surface* — you had to remember to run recall, reflect, discover-skills, adapt-skills, and the watchlist by hand, so pending work piled up unseen. This release turns them into a **push surface**: open a session and the system already tells you what needs attention; during idle time it runs the right memory chains itself; at phase boundaries it reflects and refreshes. It never blocks a session, never nags (cooldowns plus a "only when state shifted since you last saw it" guard), and never acts on its own — every adoption or write stays operator-gated. Hook/file-based and cross-host (DC-1), entirely **agentm-native** (DC-3: crickets carries zero AgentM crossover now). This is the last open V4 item — the foundation finish. Single-repo release. The default thresholds and cooldowns are a first guess; the real-use dogfood on the operator's own vault calibrates them.
+
+### Added
+
+- **SessionStart pending-state briefing** (`orchestration_briefing.py`) — on session boot, a tight 1–3 line block surfaces what's piled up: `_inbox/` over threshold · `_skill-watchlist/` HIGH-pending count · `_idea-incubator/` entries in research · GC-eligible idea-ledger items. Emits ONLY when something shifted since it was last shown AND the cooldown allows; appended to the `memory-recall-session-start` hook after the always-load recall; non-blocking (any error → empty briefing, never wedges boot).
+- **Idle-time orchestration chain** (`orchestration_idle.py`) — the `memory-reflect-idle` hook fires a cooldown-gated chain during idle time: reflect-corpus (≤5 unseen sessions, `--max-batches 1`) → discover-skills (cadence-checked) → adapt-skills Pass-1 (stages ≤3 candidates, `--limit 3`). Run **detached** so it never blocks or gets killed at the hook's 30s SessionStart timeout; results surface the next session via the briefing. Pass-2 (adapt-evaluator) stays operator-gated — a hook can't dispatch a sub-agent.
+- **Phase-integration auto-dispatch** (`orchestration_phase.py`, via a new `harness_memory.py phase-dispatch` subcommand) — after `/work` commits a task, reflect the just-finished session (**dedup-guarded** against the `memory-reflect-stop` hook via the `.reflected` session marker, so a transcript is never reflected twice; works cross-host including Antigravity, which has no Stop hook); after `/release`, refresh the skill surfaces (index-skills + discover-skills, cadence-checked). Wired into the `/work` and `/release` phase specs (§9b), config-gated and non-blocking — extends, doesn't duplicate, the V4 #8 phase context dispatcher.
+- **Two SessionStart nudges**, riding the same briefing block (one consolidated notice): **promote-suggest** — an idea surfaced ≥3× in the Ideas ledger → "consider `/memory promote`"; **stale-promotion safety-rail** — `_skill-watchlist/` entries marked `promoted` for >30 days without action → "author the skill or dismiss."
+- **Operator-tunable config + runtime state** (`auto_orchestration.py`, stdlib-only) — `<vault>/personal-private/auto-orchestration-config.md` (thresholds · cooldowns · per-chain toggles in a ` ```settings ` fence; auto-seeded once, a re-seed never clobbers operator edits) and `<vault>/_meta/auto-orchestration-state.json` (per-chain last-fire cooldowns + the last-shown snapshot that drives the anti-fatigue guard).
+
+### Changed
+
+- **`adapt-evaluator` sub-agent moved crickets → agentm** (`harness/agents/`), completing the memory-surface consolidation begun in V4 #36 — the whole push-surface is now agentm-native. The paired crickets removal + stale-catalog cleanup already landed on crickets `main` (ships with crickets' next release).
+- **`memory-reflect-stop` hook** gained a dedup skip-guard (`.sh` + `.ps1`): if a phase-dispatch already reflected the session (the `.reflected` marker is present), Stop skips — the two cooperate so a session is reflected exactly once.
+
+### Internal
+
+- New scripts: `auto_orchestration.py`, `orchestration_briefing.py`, `orchestration_idle.py`, `orchestration_phase.py` + the `harness_memory.py phase-dispatch` bridge; `adapt_skills.py` gained `--limit N` (bounds per-pass GitHub-enrichment cost). **84 tests across 4 new test files** (auto-orchestration 25 · briefing 31 · idle 12 · phase 16); full suite 549 green, 4-OS. Every code task passed an adversarial review that caught a real defect — a `UnicodeDecodeError`-escapes-catch crashing the hook on non-UTF-8 state/config, a clear-then-refill anti-fatigue suppression hiding live pending work, a wrong-session-under-concurrency reflect that burned the shared cooldown — each fixed and regression-tested.
+
+### Deferred
+
+- **Pass-2 auto-dispatch from the idle chain** — the adapt-evaluator sub-agent stays operator-gated (hooks can't dispatch sub-agents); the idle chain stages candidates + surfaces the count, and the evaluate hand-off rides the phase-dispatch / nudge where dispatch is operator-gated.
+- **The Anthropic Workflow / mid-conversation-system-message hybrid** (DC-5) — a post-V4 research follow-up: analyze whether hooks-for-triggers + Workflow-for-in-session-fan-out optimizes the orchestration.
+
+### Cross-references
+
+- ROADMAP-V4 item **#23** — auto-orchestration (the last open V4 item; foundation finish).
+- [agentm v4.12.0](https://github.com/alexherrero/agentm/releases/tag/v4.12.0) — the immediately prior release (cross-surface vault access).
+
 ## [v4.12.0] — 2026-06-01 — Cross-surface Agent M vault access (V4 #22)
 
 **MINOR.** Until now your AgentMemory vault was only readable natively by Claude Code (via its SessionStart hooks). This release makes the vault readable from **every agent surface you use** — Claude.ai, Claude Desktop, and Antigravity — so each one already knows your conventions, projects, and decisions without you re-explaining them every session. The mechanism is **configure-don't-build**: one canonical, paste-anywhere context payload plus thin per-surface wiring; no new MCP server, API, or daemon. Read-only v1 for the chat surfaces; the filesystem working agents you run (Claude Code, Antigravity) may write. Single-repo release; crickets untouched. Every surface is operator-dogfood-validated — Antigravity confirmed on **both** the Antigravity CLI and the Antigravity IDE.

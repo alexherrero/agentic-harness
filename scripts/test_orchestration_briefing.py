@@ -245,6 +245,14 @@ class TestEmit(unittest.TestCase):
         self.assertIn("briefing", st["last_fire"])
         self.assertEqual(st["last_shown"], {"watchlist_high": 1})
 
+    def test_emit_seeds_operator_config_on_first_use(self) -> None:
+        # The operator-tunable config must materialize on first SessionStart so
+        # they can find + edit it (the push-surface works on defaults, but the
+        # tunability is invisible without the file).
+        self.assertFalse(ao.config_path(self.vault).exists())
+        ob.emit_briefing(self.vault, _NOW)
+        self.assertTrue(ao.config_path(self.vault).exists())
+
     def test_second_call_unchanged_is_silent(self) -> None:
         first = ob.emit_briefing(self.vault, _NOW)
         self.assertTrue(first)

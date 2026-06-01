@@ -308,6 +308,12 @@ def emit_briefing(vault: Path, now: datetime | None = None) -> str:
     if now is None:
         now = datetime.now(timezone.utc)
     try:
+        # First-use: materialize the operator-tunable config so they can find and
+        # edit it (idempotent — a no-op once it exists; a re-seed never clobbers).
+        # The whole push-surface works on defaults without it, but the operator
+        # can't tune what they can't see — and the SessionStart briefing is the
+        # earliest, most reliable "first run" moment across the chains.
+        ao.seed_config(vault)
         config = ao.load_config(vault)
         if not config.get("enable_briefing", True):
             return ""

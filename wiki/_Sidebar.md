@@ -13,6 +13,7 @@
 - [Audit the vault](Audit-The-Vault)
 - [Find missing note links](Find-Missing-Note-Links)
 - [Use AgentMemory in any agent](Use-AgentMemory-In-Any-Agent)
+- [Tune auto-orchestration](Tune-Auto-Orchestration)
 
 ### 📖 Reference
 - [Installer CLI](Installer-CLI)
@@ -24,6 +25,7 @@
 - [Vault lint checks](Vault-Lint-Checks)
 - [Note relatedness signals](Note-Relatedness-Signals)
 - [AgentMemory context payload](AgentMemory-Context-Payload)
+- [Auto-orchestration config](Auto-Orchestration-Config)
 - [Compatibility](Compatibility)
 - [Completed features](Completed-Features)
 
@@ -32,6 +34,7 @@
 - [Auto-detect + auto-configure](Auto-Detect-Configure)
 - [How the pieces fit](How-The-Pieces-Fit)
 - [GitHub Projects integration](GitHub-Projects-Integration)
+- [Auto-orchestration](Auto-Orchestration)
 
 **Decisions**
 - [0001 — Phase-gated workflow](0001-phase-gated-workflow)
