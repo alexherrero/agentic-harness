@@ -439,6 +439,27 @@ if [[ "$SCOPE" == "user" ]]; then
   # re-fires when set; CI + non-Darwin auto-skip with one-line notice).
   _agentm_vault_first_run_prompt "$USER_INSTALL_PREFIX"
 
+  # Antigravity GLOBAL rules (V4 #22 Task 4b) — the user-scope Antigravity channel,
+  # parity with ~/.claude/ for Claude Code. Merge the AgentMemory vault-usage
+  # payload into ~/.gemini/GEMINI.md (Antigravity's global rules file, applied
+  # across every workspace) as a managed section, so Antigravity picks up the
+  # vault everywhere without a per-project install. Only when ~/.gemini/ already
+  # exists (the operator runs Antigravity/Gemini) — we don't create config dirs
+  # for tools they don't use. Idempotent; preserves the operator's own GEMINI.md.
+  # Source = the Antigravity workspace rule body (read-write working-agent
+  # framing); ONLY agentmemory-context goes global — harness.md is a per-project
+  # operating contract, not a global rule.
+  if [[ -d "$HOME/.gemini" ]]; then
+    _agentmemory_src="$HARNESS_ROOT/adapters/antigravity/rules/agentmemory-context.md"
+    if [[ -f "$_agentmemory_src" ]]; then
+      echo "    Antigravity global rules → ~/.gemini/GEMINI.md"
+      python3 "$HARNESS_ROOT/scripts/merge-managed-section.py" \
+        "$HOME/.gemini/GEMINI.md" "$_agentmemory_src" \
+        --marker AGENTMEMORY --strip-frontmatter \
+        || echo "    WARN: failed to merge agentmemory-context into ~/.gemini/GEMINI.md (continuing)" >&2
+    fi
+  fi
+
   echo "==> done (--scope user)"
   exit 0
 fi

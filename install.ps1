@@ -175,6 +175,28 @@ if ($Scope -eq 'user') {
         }
     }
 
+    # Antigravity GLOBAL rules (V4 #22 Task 4b) — the user-scope Antigravity
+    # channel, parity with ~/.claude/. Merge the AgentMemory vault-usage payload
+    # into ~/.gemini/GEMINI.md (Antigravity's global rules file, applied across
+    # every workspace) as a managed section so Antigravity picks up the vault
+    # everywhere without a per-project install. Only when ~/.gemini/ exists (the
+    # operator runs Antigravity/Gemini). Idempotent; preserves the operator's own
+    # GEMINI.md. Source = the Antigravity workspace rule body; ONLY
+    # agentmemory-context goes global — harness.md is a per-project contract.
+    $geminiDir = Join-Path $HOME '.gemini'
+    if (Test-Path -LiteralPath $geminiDir -PathType Container) {
+        $agentmemorySrc = Join-Path $HarnessRoot 'adapters/antigravity/rules/agentmemory-context.md'
+        if (Test-Path -LiteralPath $agentmemorySrc -PathType Leaf) {
+            $geminiMd = Join-Path $geminiDir 'GEMINI.md'
+            $mergeScript = Join-Path $HarnessRoot 'scripts/merge-managed-section.py'
+            Write-Host '    Antigravity global rules -> ~/.gemini/GEMINI.md'
+            & $pythonCmd.Source $mergeScript $geminiMd $agentmemorySrc '--marker' 'AGENTMEMORY' '--strip-frontmatter'
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warning '    failed to merge agentmemory-context into ~/.gemini/GEMINI.md (continuing)'
+            }
+        }
+    }
+
     Write-Host '==> done (-Scope user)'
     exit 0
 }
