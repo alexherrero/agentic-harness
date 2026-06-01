@@ -63,6 +63,17 @@ if (-not (Test-Path $Transcript)) {
     exit 0
 }
 
+# ── Phase-dispatch dedup guard (V4 #23 task 5) ─────────────────────────────
+# If a .reflected marker for this session already exists, the post-/work
+# phase-integration dispatch (orchestration_phase.py) already reflected this
+# transcript. Re-reflecting would double-route (HIGH save errors on a slug
+# collision), so skip — they cooperate via this marker.
+$ReflectedGuard = Join-Path ".harness" "session-id-$SessionId.reflected"
+if (Test-Path $ReflectedGuard) {
+    [Console]::Error.WriteLine("[memory-reflect-stop] session $SessionId already reflected (phase dispatch); skipping")
+    exit 0
+}
+
 # Invoke reflect.py with --summary + --route. Captured once so we can
 # reuse for transparency line + stdout pass-through (running --route
 # twice would error on slug collision for HIGH saves).

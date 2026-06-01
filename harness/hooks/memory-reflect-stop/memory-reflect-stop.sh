@@ -124,6 +124,19 @@ if [[ ! -f "$TRANSCRIPT" ]]; then
     exit 0
 fi
 
+# ── Phase-dispatch dedup guard (V4 #23 task 5) ─────────────────────────────
+# If a .reflected marker for this session already exists, the post-/work
+# phase-integration dispatch (orchestration_phase.py) already reflected this
+# transcript and renamed .start → .reflected. Re-reflecting here would
+# double-route (the HIGH save errors on a slug collision), so skip — the work
+# is already done. They cooperate via this marker so the same session is never
+# reflected twice, whichever fires first.
+REFLECTED_MARKER=".harness/session-id-${SESSION_ID}.reflected"
+if [[ -f "$REFLECTED_MARKER" ]]; then
+    echo "[memory-reflect-stop] session ${SESSION_ID} already reflected (phase dispatch); skipping" >&2
+    exit 0
+fi
+
 # Invoke reflect.py with --summary + --route. The routing pass auto-saves
 # HIGH candidates to canonical paths + sends MEDIUM/LOW + ideas to _inbox/.
 # Route-mode defaults to "auto" (hook-safe; never prompts; MEDIUM → _inbox/)

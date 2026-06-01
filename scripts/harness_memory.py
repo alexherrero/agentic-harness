@@ -16,6 +16,8 @@ Sub-commands:
                           by --confidence: ≥ threshold auto-saves silently)
     plan-done-promotion — dumps progress.md tail past a byte cursor; advances cursor
     available           — exit 0 if vault accessible, 1 otherwise
+    phase-dispatch      — V4 #23: post-work reflect / post-release refresh
+                          (shells out to orchestration_phase.py; non-blocking)
     read-state          — read a project state file via the resolver (vault-first)
     write-state         — write a project state file via the resolver (vault-only)
     vault-state-path    — emit the resolved on-disk path for a state file
@@ -1254,6 +1256,20 @@ def _build_parser() -> argparse.ArgumentParser:
     # available
     sub.add_parser("available", help="exit 0 iff vault is accessible")
 
+    # V4 #23 task 5: phase-integration auto-dispatch. Shells out to the
+    # auto-orchestration phase dispatcher (orchestration_phase.py). Always
+    # exits 0 (graceful-skip / non-blocking) so a phase never wedges on it.
+    p_phase = sub.add_parser(
+        "phase-dispatch",
+        help="auto-orchestration phase dispatch (post-work reflect / post-release refresh)",
+    )
+    p_phase.add_argument("phase", choices=["post-work", "post-release"],
+                         help="which phase boundary fired")
+    p_phase.add_argument("--project-root", default=None,
+                         help="path to project root (default: cwd)")
+    p_phase.add_argument("--dry-run", action="store_true",
+                         help="print the resolved dispatch plan without executing")
+
     # V4 #37 task 7: dispatcher CLI for state-file reads/writes/path lookups.
     # Phase specs + bugfix pipeline invoke these instead of bare `Read .harness/<file>`
     # so the workflow actually uses the vault canonical path post-V4 #26.
@@ -1311,6 +1327,43 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def phase_dispatch(*, phase: str, project_root: Optional[str], dry_run: bool) -> int:
+    """Shell out to the auto-orchestration phase dispatcher (V4 #23 task 5).
+
+    `phase` is 'post-work' (reflect the just-finished session, dedup-guarded vs
+    the Stop hook) or 'post-release' (index-skills + discover-skills refresh).
+    Always returns 0 — graceful-skip when the vault is unavailable, the toolkit
+    isn't installed, or the dispatcher errors. NEVER blocks a phase.
+    """
+    v = vault_path()
+    if v is None:
+        return 0  # graceful-skip: no vault configured
+    tk = toolkit_scripts_dir()
+    if tk is None:
+        return 0  # graceful-skip: memory toolkit not installed
+    disp = tk / "orchestration_phase.py"
+    if not disp.is_file():
+        return 0
+    cmd = [
+        sys.executable, str(disp),
+        "--vault-path", str(v),
+        "--project-root", project_root or ".",
+    ]
+    if dry_run:
+        cmd.append("--dry-run")
+    cmd.append(phase)
+    try:
+        result = subprocess.run(cmd, text=True, capture_output=True, timeout=180)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        print(f"[harness_memory] phase-dispatch invocation failed: {exc}", file=sys.stderr)
+        return 0  # non-blocking
+    if result.stdout:
+        sys.stdout.write(result.stdout)
+    if result.returncode != 0 and result.stderr:
+        sys.stderr.write(result.stderr)
+    return 0  # always non-blocking
+
+
 def _read_content_file(path: str) -> str:
     if path == "-":
         return sys.stdin.read()
@@ -1322,6 +1375,13 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     if args.cmd == "available":
         return 0 if is_available() else 1
+
+    if args.cmd == "phase-dispatch":
+        return phase_dispatch(
+            phase=args.phase,
+            project_root=args.project_root,
+            dry_run=args.dry_run,
+        )
 
     if args.cmd == "recall":
         out = phase_recall(

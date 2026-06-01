@@ -249,6 +249,22 @@ Follow project convention for trailers (issue references, `Signed-off-by`, etc.)
 
 If the project requires signed commits or has pre-commit hooks, let them run — do not use `--no-verify`.
 
+### 9b. Auto-orchestration: reflect the finished session (graceful-skip if not installed)
+
+If `harness_memory.py available` exits 0, dispatch the post-`/work` reflection of the just-finished session — the auto-orchestration "push surface" (V4 #23 task 5). It mines the session transcript for durable candidates the same way the `memory-reflect-stop` hook does, but tied to **task completion** and working cross-host (including hosts without a Stop hook, e.g. Antigravity):
+
+```bash
+python3 scripts/harness_memory.py phase-dispatch post-work --project-root .
+```
+
+This is **dedup-guarded** against the `memory-reflect-stop` hook — they cooperate via the `.harness/session-id-<sid>.reflected` marker so the same transcript is never reflected twice (a second `--route` would error on a slug collision). It is config-toggleable (`enable_phase_integration` in the vault's `auto-orchestration-config.md`) and cooldown-gated (`phase_reflect_cooldown_hours`, default 1h). Non-blocking — any failure is swallowed.
+
+**Graceful-skip conditions** (silent):
+- `harness_memory.py available` exits 1 (no vault) — or the memory toolkit isn't installed.
+- `enable_phase_integration = false` in the config.
+- The session was already reflected (the Stop hook beat it) or the cooldown is active — the dispatch no-ops; on Claude Code the Stop hook then handles session-end reflection as before.
+- **Ambiguous session** — if `.harness/` holds more than one active `session-id-*.start` marker (concurrent agents in one repo, or an active session beside a not-yet-swept crashed-session orphan), the dispatch refuses to guess which transcript is "current" and defers to the session-exact Stop hook (concurrency-safety).
+
 ### 10. Offer deferred items to the GitHub Project (optional)
 
 If `.harness/project.json` exists and `gh` is available on PATH, consider whether this `/work` session surfaced anything **out of task scope** that the user might want on the backlog: an adjacent bug you noticed while implementing, a refactor opportunity, missing test coverage elsewhere, a stale doc. *Not* follow-ups to the current task — those belong in the next `/work` task, not a project item.

@@ -252,6 +252,21 @@ Once the user has taken the release actions (or chosen not to), append to `.harn
 
 If the release was held, leave `PLAN.md` as-is. If it shipped, archive or clear `PLAN.md` to make room for the next plan — ask the user which.
 
+### 9b. Auto-orchestration: refresh skill surfaces (graceful-skip if not installed)
+
+If `harness_memory.py available` exits 0 **and** the release shipped (not held), dispatch the post-`/release` skill-surface refresh — re-index the local skills + refresh discovery sources so they align with what just shipped (V4 #23 task 5):
+
+```bash
+python3 scripts/harness_memory.py phase-dispatch post-release --project-root .
+```
+
+It runs `index_skills.py` (local skill index) then `discover_skills.py --cadence-check` (external sources — cadence-checked so a release never blocks on a full network fetch). Config-toggleable (`enable_phase_integration`) + cooldown-gated (`phase_reflect_cooldown_hours`, on a separate `phase_release` timer so it doesn't collide with the post-`/work` reflect). Non-blocking.
+
+**Graceful-skip conditions** (silent):
+- `harness_memory.py available` exits 1 — or the memory toolkit isn't installed.
+- `enable_phase_integration = false` in the config.
+- Within the cooldown window (a recent release already refreshed), or the release was held.
+
 ## Optional: `commit-on-stop` safety net (crickets)
 
 If [`crickets`](https://github.com/alexherrero/crickets) is installed alongside the harness, the [`commit-on-stop`](https://github.com/alexherrero/crickets/blob/main/hooks/commit-on-stop/hook.md) hook fires on Claude Code's `Stop` event. If a `/release` flow is interrupted with uncommitted changes (e.g. mid-CHANGELOG-edit, mid-tag-prep), the dirty tree gets saved to an `auto-save/<iso-timestamp>` branch automatically — next session recovers via `git checkout auto-save/<ts>`. Same safety-net mechanism as in [`/work`](03-work.md#long-running-work--operator-control-hooks-crickets); `/release` benefits less from the kill-switch + steer pair (release flow is typically short) but the commit-on-stop backstop reduces the cost of an interrupted release prep. Graceful-skip: install crickets to enable; otherwise the release continues to work the same way it always has.
