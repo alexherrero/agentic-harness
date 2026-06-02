@@ -109,11 +109,27 @@ def load_state(vault: Path) -> dict:
 
 
 def save_state(vault: Path, state: dict) -> None:
+    """Persist state atomically. The state file lives in the SHARED vault
+    (`<vault>/_meta/`), so concurrent agents across the operator's repos can
+    write it at the same time — a plain `write_text` could be read mid-write as
+    torn/partial JSON (degrading to an empty shape → a lost cooldown / spurious
+    re-fire). Write to a pid-unique temp in the same dir, then `os.replace`
+    (atomic on POSIX + Windows), so a reader only ever sees a complete file."""
     p = state_path(vault)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(
-        json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    data = json.dumps(state, indent=2, sort_keys=True) + "\n"
+    # pid in the temp name so two concurrent writers don't collide on the temp
+    # file itself; os.replace then makes the swap atomic.
+    tmp = p.with_name(f"{p.name}.{os.getpid()}.tmp")
+    try:
+        tmp.write_text(data, encoding="utf-8")
+        os.replace(tmp, p)
+    finally:
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except OSError:
+            pass
 
 
 # ── cooldowns ───────────────────────────────────────────────────────────────

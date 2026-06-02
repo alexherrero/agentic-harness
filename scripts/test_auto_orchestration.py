@@ -48,6 +48,28 @@ class TestState(unittest.TestCase):
         self.assertEqual(again["last_shown"], {"inbox": 12})
         self.assertIn("idle_chain", again["last_fire"])
 
+    def test_save_is_atomic_no_temp_left_behind(self) -> None:
+        # Atomic write (v4.13.1): save round-trips AND leaves no `.tmp` artifact
+        # in _meta/ (the temp is consumed by os.replace), so a concurrent reader
+        # never sees a torn write.
+        st = ao.load_state(self.vault)
+        ao.record_fire(st, "idle_chain", _NOW)
+        ao.save_state(self.vault, st)
+        meta = ao.state_path(self.vault).parent
+        leftover = list(meta.glob("*.tmp"))
+        self.assertEqual(leftover, [])
+        self.assertIn("idle_chain", ao.load_state(self.vault)["last_fire"])
+
+    def test_save_overwrite_is_atomic_replace(self) -> None:
+        # Overwriting an existing state file must replace it cleanly (os.replace
+        # over an existing target), not append/corrupt.
+        ao.save_state(self.vault, {"last_fire": {"briefing": _NOW.isoformat()}, "last_shown": {}})
+        ao.save_state(self.vault, {"last_fire": {"idle_chain": _NOW.isoformat()}, "last_shown": {"inbox": 3}})
+        again = ao.load_state(self.vault)
+        self.assertEqual(again["last_shown"], {"inbox": 3})
+        self.assertNotIn("briefing", again["last_fire"])  # fully replaced
+        self.assertEqual(list(ao.state_path(self.vault).parent.glob("*.tmp")), [])
+
     def test_corrupt_file_returns_empty_shape(self) -> None:
         ao.state_path(self.vault).parent.mkdir(parents=True, exist_ok=True)
         ao.state_path(self.vault).write_text("{ not json", encoding="utf-8")

@@ -1,6 +1,6 @@
 ---
 name: memory-reflect-stop
-description: "Stop-event hook that mines the just-ended session's transcript for durable candidate entries. Parallel passes: 3-category MemoryVault mine + idea-candidate mine. Emits a transparency line listing candidate counts per confidence tier. Tri-modal routing (HIGH→auto / MEDIUM→interactive / LOW→inbox) lands in plan #7a part 3 task 5; this hook ships the scaffold + mining call. Plan #7a part 3 task 3."
+description: "Stop-event hook that mines the just-ended session's transcript for durable candidate entries and ROUTES them into the vault: HIGH → auto-saved to canonical paths, MEDIUM/LOW/ideas → _inbox/ (tri-modal routing via reflect.py --route, default route-mode 'auto'). Emits a transparency line listing candidate counts + what got saved/inboxed. On success renames the session's .start crash-recovery marker → .reflected. Dedup-guarded against the V4 #23 phase-dispatch (skips if the session was already reflected). Plan #7a part 3 task 3 (scaffold) + task 5 (routing) + V4 #23 (dedup)."
 kind: hook
 supported_hosts: [claude-code]
 version: 0.1.0
@@ -15,26 +15,28 @@ A `Stop` event hook that runs reflection mining (via `skills/memory/scripts/refl
 
 - **Trigger:** Claude Code's `Stop` event (matcher `.*` — fires at the end of every agent turn that ends a session).
 - **Session-id resolution:** parses the Stop event's stdin JSON payload + extracts `session_id`. The transcript path is computed as `~/.claude/projects/<cwd-slug>/<session_id>.jsonl` where `<cwd-slug>` is `cwd` with `/` → `-` + leading `-`.
-- **Mining call:** invokes `python3 .claude/skills/memory/scripts/reflect.py <transcript-path> --summary`. The script emits one JSON record per candidate on stdout.
+- **Dedup guard (V4 #23):** before mining, if `.harness/session-id-<sid>.reflected` already exists, the session was already reflected by the post-`/work` phase-dispatch (`orchestration_phase.py`) — the hook skips (a second `reflect.py --route` would error on a HIGH-save slug collision). The two cooperate via this marker so a session is reflected exactly once.
+- **Mining + routing call:** invokes `python3 .claude/skills/memory/scripts/reflect.py <transcript-path> --summary --route`. The `--route` pass auto-saves HIGH candidates to canonical paths and sends MEDIUM/LOW + ideas to `_inbox/`. Route-mode defaults to `auto` (hook-safe; never prompts); `MEMORY_REVIEW_MODE=silent` auto-saves MEDIUM too.
+- **Marker rename:** on a successful route, renames `.harness/session-id-<sid>.start` → `.reflected` (the crash-recovery marker the idle hook GCs after 30 days; also what the dedup guard above keys on). No-op if the `.start` marker is absent.
 - **Output:**
-  - **stdout** — passed through from reflect.py (one JSON record per line). Claude Code shows this in hook logs; future task 5 routing logic will parse + act on these records.
-  - **stderr** — one transparency line: `[memory-reflect-stop] Mined N memory candidates + M idea candidates from <transcript-path>`. Truncated to slug list if any candidates surface.
-- **Exit 0 always** — even on missing transcript, mining errors, missing python3 (graceful-skip pattern across the layered failure modes).
+  - **stdout** — passed through from reflect.py (one JSON record per line: the summary + route passes).
+  - **stderr** — one transparency line: `[memory-reflect-stop] Mined N memory + M idea candidates from <transcript>; saved S, inboxed I`.
+- **Exit 0 always** — even on missing transcript, routing errors (e.g. `MEMORY_VAULT_PATH` unset), missing python3 (graceful-skip pattern across the layered failure modes).
 
-## Implementation status (task 3 of plan #7a part 3)
+## Implementation status
 
-This task ships the hook scaffold + transcript-path resolution + reflect.py invocation. **Tri-modal routing** (HIGH→auto-save via `/memory save`, MEDIUM→interactive review, LOW→`_inbox/` write) lands in task 5 of this part. Until then, this hook **emits candidates but does NOT save them** — the operator can inspect the hook logs to see what would have been routed.
+Routing **shipped** (plan #7a part 3 task 5): the hook mines AND routes — HIGH → auto-saved to canonical paths, MEDIUM/LOW/ideas → `_inbox/` (tri-modal via `reflect.py --route`, default route-mode `auto`). V4 #23 added the phase-dispatch **dedup guard** + the `.reflected` marker cooperation. (The original task-3 scaffold mined-but-didn't-save; that's no longer the behavior.)
 
 ## What it never does
 
-- **Never blocks session end.** If anything fails (transcript missing, reflect.py missing, python3 missing, mining error), the hook exits 0 silently.
-- **Never writes to MemoryVault.** Task 3 only mines + reports. Writing happens in task 5.
-- **Never modifies the transcript.** Pure read-only.
+- **Never blocks session end.** If anything fails (transcript missing, reflect.py missing, python3 missing, mining/routing error), the hook exits 0 silently.
+- **Never double-reflects a session.** The `.reflected` dedup guard makes the hook and the V4 #23 phase-dispatch cooperate — whichever fires first reflects + marks; the other skips.
+- **Never modifies the transcript.** Pure read-only on the transcript itself; writes only to the vault (via routing) + the `.harness/` marker.
 - **Never invokes reflect.py with a non-existent transcript.** If the path doesn't resolve, hook exits 0 with a "transcript not found" stderr note.
 
 ## Failure modes (all soft)
 
-- **`MEMORY_VAULT_PATH` unset** — hook still mines + reports candidates, but the future task-5 routing won't know where to save. Stop-event hook itself doesn't need vault access — that's task 5's wiring.
+- **`MEMORY_VAULT_PATH` unset** — `reflect.py --route` exits non-zero (no vault to route into); the hook emits a "reflect.py --route exited N (MEMORY_VAULT_PATH set?)" stderr note + exit 0, and leaves the `.start` marker intact so a later pass can retry.
 - **Stdin payload missing `session_id`** — hook reports "no session_id on stdin" + exit 0.
 - **Transcript path doesn't exist** — stderr "transcript not found: <path>" + exit 0.
 - **reflect.py not installed** — exit 0 silently (graceful-skip; matches the recall hooks' pattern).

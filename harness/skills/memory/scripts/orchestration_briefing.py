@@ -225,6 +225,35 @@ def count_stale_promoted(vault: Path, stale_days: int, now: datetime) -> int:
     return n
 
 
+def count_staged_adapt(vault: Path) -> int:
+    """Count staged Pass-1 adapt candidates awaiting a Pass-2 verdict — JSONs at
+    `_meta/skill-discovery-cache/adapt-state/<source>/<pattern>.json` that have
+    NO corresponding `_skill-watchlist/<source>/<pattern>.md` entry yet. This
+    closes the discover→adapt→evaluate loop: the idle chain stages Pass-1
+    candidates, this surfaces them so the operator runs `/memory adapt-skills`
+    (which dispatches the adapt-evaluator, Pass-2). Excluding already-watchlisted
+    candidates means the count clears as the operator evaluates. Never raises → 0.
+    (The sibling root-level `evaluated.json` is a file, not a source dir, so the
+    `is_dir()` guard skips it.)"""
+    root = Path(vault) / "_meta" / "skill-discovery-cache" / "adapt-state"
+    if not root.is_dir():
+        return 0
+    wl_root = Path(vault) / "personal-private" / "_skill-watchlist"
+    n = 0
+    try:
+        for source_dir in root.iterdir():
+            if not source_dir.is_dir():
+                continue
+            for j in source_dir.glob("*.json"):
+                if not j.is_file():
+                    continue
+                if not (wl_root / source_dir.name / f"{j.stem}.md").exists():
+                    n += 1
+    except OSError:
+        return n
+    return n
+
+
 # ── gather + render ─────────────────────────────────────────────────────────
 def gather_signals(vault: Path, config: dict, now: datetime) -> dict:
     sig = {
@@ -232,6 +261,7 @@ def gather_signals(vault: Path, config: dict, now: datetime) -> dict:
         "watchlist_high": count_watchlist_high_pending(vault),
         "incubator": count_incubator_pending(vault),
         "idea_ledger": count_idea_ledger_stale(now, int(config.get("idea_ledger_stale_months", 6))),
+        "staged_adapt": count_staged_adapt(vault),
     }
     # Nudges (task 6) — gated by their own toggles so a disabled nudge computes
     # 0 (no wasted parse) and stays out of the shifted-state snapshot.
@@ -257,6 +287,8 @@ def _over_threshold(signals: dict, config: dict) -> dict:
         out["incubator"] = signals["incubator"]
     if signals["idea_ledger"] >= 1:  # any stale ledger entry is worth a nudge
         out["idea_ledger"] = signals["idea_ledger"]
+    if signals.get("staged_adapt", 0) >= 1:  # candidates awaiting Pass-2 eval
+        out["staged_adapt"] = signals["staged_adapt"]
     # Nudges (task 6) — the mention/stale thresholds are applied inside the
     # counters, and the toggle inside gather_signals, so any non-zero count here
     # is already a qualifying, enabled signal.
@@ -278,6 +310,9 @@ def build_briefing(signals: dict, config: dict) -> str:
     if "watchlist_high" in active:
         n = active["watchlist_high"]
         parts.append(f"{n} HIGH skill-watchlist {'pattern' if n == 1 else 'patterns'} to review (`/memory watchlist`)")
+    if "staged_adapt" in active:
+        n = active["staged_adapt"]
+        parts.append(f"{n} skill candidate{'' if n == 1 else 's'} staged for adapt-evaluation (`/memory adapt-skills`)")
     if "incubator" in active:
         n = active["incubator"]
         parts.append(f"{n} incubator idea{'' if n == 1 else 's'} in research")

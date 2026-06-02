@@ -106,6 +106,22 @@ class TestCounters(unittest.TestCase):
         finally:
             del os.environ["IDEAS_SURFACE_PATH"]
 
+    def test_staged_adapt_counts_only_unevaluated(self) -> None:
+        # v4.13.1: staged Pass-1 candidates WITHOUT a watchlist entry = awaiting
+        # Pass-2; ones with an entry (Pass-2 done) clear from the count.
+        cache = self.vault / "_meta" / "skill-discovery-cache" / "adapt-state"
+        (cache / "src").mkdir(parents=True)
+        (cache / "src" / "p1.json").write_text("{}", encoding="utf-8")   # no entry → counts
+        (cache / "src" / "p2.json").write_text("{}", encoding="utf-8")   # entry exists → not
+        (cache / "evaluated.json").write_text("{}", encoding="utf-8")    # root file → skipped
+        wl = self.vault / "personal-private" / "_skill-watchlist" / "src"
+        wl.mkdir(parents=True)
+        (wl / "p2.md").write_text("---\nstatus: pending-review\n---\nb\n", encoding="utf-8")
+        self.assertEqual(ob.count_staged_adapt(self.vault), 1)
+
+    def test_staged_adapt_absent_is_zero(self) -> None:
+        self.assertEqual(ob.count_staged_adapt(self.vault), 0)
+
     def test_idea_ledger_naive_now_does_not_raise(self) -> None:
         # Adversarial #2: a timezone-naive `now` must not raise (counters never
         # raise) — the ledger dates are tz-aware, so subtraction would TypeError.
@@ -216,6 +232,13 @@ class TestRender(unittest.TestCase):
         self.assertIn("1 idea surfaced", out)
         self.assertIn("1 skill-watchlist pattern promoted", out)
 
+    def test_renders_staged_adapt(self) -> None:
+        signals = {"inbox": 0, "watchlist_high": 0, "incubator": 0, "idea_ledger": 0,
+                   "staged_adapt": 3}
+        out = ob.build_briefing(signals, self._cfg())
+        self.assertIn("3 skill candidates staged for adapt-evaluation", out)
+        self.assertIn("/memory adapt-skills", out)
+
     def test_inbox_below_threshold_suppressed(self) -> None:
         signals = {"inbox": 5, "watchlist_high": 0, "incubator": 0, "idea_ledger": 0}
         self.assertEqual(ob.build_briefing(signals, self._cfg(inbox_threshold=10)), "")
@@ -310,6 +333,17 @@ class TestEmit(unittest.TestCase):
         self.assertIn("HIGH skill-watchlist", out)  # consolidated, one block
         st = ao.load_state(self.vault)
         self.assertEqual(st["last_shown"], {"watchlist_high": 1, "stale_promoted": 1})
+
+    def test_staged_adapt_rides_briefing(self) -> None:
+        # The idle chain stages a Pass-1 candidate; the briefing must surface it
+        # so the operator runs Pass-2 (closes the discover→adapt→evaluate loop).
+        cache = self.vault / "_meta" / "skill-discovery-cache" / "adapt-state" / "src"
+        cache.mkdir(parents=True)
+        (cache / "newpat.json").write_text("{}", encoding="utf-8")
+        out = ob.emit_briefing(self.vault, _NOW)
+        self.assertIn("staged for adapt-evaluation", out)
+        self.assertEqual(ao.load_state(self.vault)["last_shown"],
+                         {"watchlist_high": 1, "staged_adapt": 1})
 
     def test_promote_suggest_toggle_off_suppresses(self) -> None:
         ideas = self.vault / "Ideas.md"

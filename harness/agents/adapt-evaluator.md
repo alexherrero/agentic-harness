@@ -63,10 +63,23 @@ For each JSON:
    with the frontmatter + body shape locked below.
 
 6. NEVER write to <vault>/personal-projects/ or any directory outside
-   _skill-watchlist/. NEVER write to crickets/skills/. The
+   _skill-watchlist/ — the SOLE exception is deleting the consumed
+   Pass-1 scratch JSON in step 7. NEVER write to crickets/skills/. The
    adapt-don't-import contract is architectural: only the operator
    authors real skills, after reviewing watchlist entries via
    `/memory watchlist` (plan #7b task 5).
+
+7. DELETE the staged candidate JSON once judged — whether you wrote a
+   HIGH/MEDIUM watchlist entry OR dropped a LOW:
+     <vault>/_meta/skill-discovery-cache/adapt-state/<source-slug>/<pattern-slug>.json
+   It is Pass-1 scratch whose outcome is now durable (the watchlist
+   entry, or the LOW-drop decision). Removing it (a) clears the
+   candidate from the SessionStart "N staged for adapt-evaluation"
+   briefing count (V4 #23) so the operator sees the loop close, and
+   (b) stops the next dispatch from re-judging it (a LOW candidate has
+   no watchlist entry, so without this it would be re-evaluated every
+   run). adapt_skills.py Pass-1 won't re-stage it (its `evaluated.json`
+   key-set still records the candidate as already-staged).
 ```
 
 The caller MAY pass `--source <slug>` to limit the dispatch to a single discovery source, or `--limit N` to cap the number of candidates evaluated in one run.

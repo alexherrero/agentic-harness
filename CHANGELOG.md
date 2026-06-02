@@ -5,6 +5,30 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v4.13.1] — 2026-06-01 — Auto-orchestration fast-follows: concurrency + the adapt loop
+
+**PATCH.** Three fast-follows on the v4.13.0 push-surface, found in a post-release sweep before moving on.
+
+### Fixed
+
+- **Atomic state writes (concurrency-safety).** `auto_orchestration.save_state` wrote the **shared** `<vault>/_meta/auto-orchestration-state.json` with a plain `write_text` — but that file is read+written by every repo/agent against the one shared vault, and the operator runs concurrent agents. A reader could catch a torn/partial write and degrade to an empty shape (a lost cooldown → a spurious re-fire). Now writes to a pid-unique temp + `os.replace` (atomic on POSIX **and** Windows), so a reader only ever sees a complete file. Verified under 4 concurrent writers — 0 torn reads.
+
+### Added
+
+- **The idle chain's staged adapt candidates now surface.** The idle chain stages Pass-1 candidates under `_meta/skill-discovery-cache/adapt-state/` — but nothing told you they were there, so the discover→adapt→**evaluate** loop staged into a black hole (Pass-2 never prompted). The SessionStart briefing now reports *"N skill candidate(s) staged for adapt-evaluation (`/memory adapt-skills`)"*, counting only candidates without a watchlist entry yet so the count **clears as you evaluate**. The `adapt-evaluator` contract now deletes the consumed Pass-1 scratch JSON after judging — so LOW-dropped candidates clear too, and a latent "re-judge every LOW candidate each run" inefficiency is closed.
+
+### Changed
+
+- **`memory-reflect-stop/hook.md`** brought in line with the `.sh`. The doc still described the long-superseded task-3 "mines but does NOT save" scaffold; in reality the hook has *routed* (HIGH → canonical paths, MEDIUM/LOW/ideas → `_inbox/`) since task 5, and gained the V4 #23 `.reflected` phase-dispatch **dedup guard** so a session is never reflected twice.
+
+### Internal
+
+- +6 tests (auto-orchestration 27 · briefing 36); full suite **556** green, 4-OS. Adversarial review: NO ISSUES FOUND (empirically verified the atomic write under 4 concurrent writers + the staged-count shifted-state snapshot transitions).
+
+### Cross-references
+
+- Fast-follows on [agentm v4.13.0](https://github.com/alexherrero/agentm/releases/tag/v4.13.0) — V4 #23 auto-orchestration.
+
 ## [v4.13.0] — 2026-06-01 — Auto-orchestration: the memory push-surface (V4 #23)
 
 **MINOR.** The Agent M memory skills were a *pull surface* — you had to remember to run recall, reflect, discover-skills, adapt-skills, and the watchlist by hand, so pending work piled up unseen. This release turns them into a **push surface**: open a session and the system already tells you what needs attention; during idle time it runs the right memory chains itself; at phase boundaries it reflects and refreshes. It never blocks a session, never nags (cooldowns plus a "only when state shifted since you last saw it" guard), and never acts on its own — every adoption or write stays operator-gated. Hook/file-based and cross-host (DC-1), entirely **agentm-native** (DC-3: crickets carries zero AgentM crossover now). This is the last open V4 item — the foundation finish. Single-repo release. The default thresholds and cooldowns are a first guess; the real-use dogfood on the operator's own vault calibrates them.
